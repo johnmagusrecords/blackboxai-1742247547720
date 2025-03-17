@@ -1,0 +1,474 @@
+2025-03-13 03:29:57,525 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 03:29:57,964 - DEBUG - Authentication response: 400
+2025-03-13 03:34:58,299 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 03:34:58,737 - DEBUG - Authentication response: 400
+2025-03-13 03:39:59,166 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 03:39:59,613 - DEBUG - Authentication response: 400
+2025-03-13 03:49:24,660 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 03:49:25,319 - DEBUG - Authentication response: 200
+2025-03-13 03:59:26,642 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 03:59:27,287 - DEBUG - Authentication response: 200
+2025-03-13 04:09:28,587 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:09:29,238 - DEBUG - Authentication response: 200
+2025-03-13 04:19:30,469 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:19:31,112 - DEBUG - Authentication response: 200
+2025-03-13 04:29:32,253 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:29:32,901 - DEBUG - Authentication response: 200
+2025-03-13 04:39:34,153 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:39:34,796 - DEBUG - Authentication response: 200
+2025-03-13 04:49:36,222 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:49:36,875 - DEBUG - Authentication response: 200
+2025-03-13 04:59:38,159 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 04:59:38,810 - DEBUG - Authentication response: 200
+2025-03-13 05:09:39,929 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:09:40,576 - DEBUG - Authentication response: 200
+2025-03-13 05:19:41,935 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:19:42,601 - DEBUG - Authentication response: 200
+2025-03-13 05:29:45,609 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:29:46,273 - DEBUG - Authentication response: 200
+2025-03-13 05:39:47,718 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:39:48,373 - DEBUG - Authentication response: 200
+2025-03-13 05:49:49,642 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:49:50,300 - DEBUG - Authentication response: 200
+2025-03-13 05:59:51,716 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 05:59:52,374 - DEBUG - Authentication response: 200
+2025-03-13 06:09:53,721 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 06:09:54,364 - DEBUG - Authentication response: 200
+2025-03-13 06:19:55,750 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 06:19:56,405 - DEBUG - Authentication response: 200
+2025-03-13 06:29:57,696 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 06:29:58,366 - DEBUG - Authentication response: 200
+2025-03-13 06:39:59,847 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 06:40:00,499 - DEBUG - Authentication response: 200
+2025-03-13 06:50:01,598 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 06:50:02,259 - DEBUG - Authentication response: 200
+2025-03-13 07:00:03,348 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:00:04,006 - DEBUG - Authentication response: 200
+2025-03-13 07:10:05,268 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:10:05,906 - DEBUG - Authentication response: 200
+2025-03-13 07:20:07,179 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:20:07,847 - DEBUG - Authentication response: 200
+2025-03-13 07:30:09,176 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:30:09,829 - DEBUG - Authentication response: 200
+2025-03-13 07:40:10,942 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:40:11,606 - DEBUG - Authentication response: 200
+2025-03-13 07:50:13,004 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 07:50:13,685 - DEBUG - Authentication response: 200
+2025-03-13 08:00:15,017 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:00:17,127 - DEBUG - Authentication response: 200
+2025-03-13 08:10:18,303 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:10:18,965 - DEBUG - Authentication response: 200
+2025-03-13 08:20:20,191 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:20:20,832 - DEBUG - Authentication response: 200
+2025-03-13 08:30:22,226 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:30:22,881 - DEBUG - Authentication response: 200
+2025-03-13 08:40:24,090 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:40:24,759 - DEBUG - Authentication response: 200
+2025-03-13 08:50:26,077 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 08:50:26,747 - DEBUG - Authentication response: 200
+2025-03-13 09:00:27,973 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:00:28,637 - DEBUG - Authentication response: 200
+2025-03-13 09:10:29,839 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:10:30,486 - DEBUG - Authentication response: 200
+2025-03-13 09:20:31,669 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:20:32,352 - DEBUG - Authentication response: 200
+2025-03-13 09:30:33,653 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:30:34,298 - DEBUG - Authentication response: 200
+2025-03-13 09:40:35,631 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:40:36,273 - DEBUG - Authentication response: 200
+2025-03-13 09:50:37,758 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 09:50:38,408 - DEBUG - Authentication response: 200
+2025-03-13 10:00:39,849 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:00:40,475 - DEBUG - Authentication response: 200
+2025-03-13 10:10:41,709 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:10:42,340 - DEBUG - Authentication response: 200
+2025-03-13 10:20:43,473 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:20:44,123 - DEBUG - Authentication response: 200
+2025-03-13 10:30:45,514 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:30:46,200 - DEBUG - Authentication response: 200
+2025-03-13 10:40:47,613 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:40:48,254 - DEBUG - Authentication response: 200
+2025-03-13 10:50:49,701 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 10:50:50,343 - DEBUG - Authentication response: 200
+2025-03-13 11:00:51,723 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:00:52,393 - DEBUG - Authentication response: 200
+2025-03-13 11:10:53,718 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:10:54,361 - DEBUG - Authentication response: 200
+2025-03-13 11:20:55,796 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:20:56,427 - DEBUG - Authentication response: 200
+2025-03-13 11:30:57,587 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:30:58,260 - DEBUG - Authentication response: 200
+2025-03-13 11:40:59,711 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:41:00,356 - DEBUG - Authentication response: 200
+2025-03-13 11:51:01,668 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 11:51:02,310 - DEBUG - Authentication response: 200
+2025-03-13 12:01:03,455 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:01:04,114 - DEBUG - Authentication response: 200
+2025-03-13 12:11:05,568 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:11:06,232 - DEBUG - Authentication response: 200
+2025-03-13 12:21:07,602 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:21:08,246 - DEBUG - Authentication response: 200
+2025-03-13 12:31:09,653 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:31:10,312 - DEBUG - Authentication response: 200
+2025-03-13 12:41:11,605 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:41:12,276 - DEBUG - Authentication response: 200
+2025-03-13 12:51:13,756 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 12:51:14,410 - DEBUG - Authentication response: 200
+2025-03-13 13:01:15,584 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:01:16,219 - DEBUG - Authentication response: 200
+2025-03-13 13:11:17,438 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:11:18,091 - DEBUG - Authentication response: 200
+2025-03-13 13:21:19,358 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:21:20,008 - DEBUG - Authentication response: 200
+2025-03-13 13:31:21,174 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:31:21,827 - DEBUG - Authentication response: 200
+2025-03-13 13:41:23,208 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:41:23,863 - DEBUG - Authentication response: 200
+2025-03-13 13:51:25,039 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 13:51:25,683 - DEBUG - Authentication response: 200
+2025-03-13 14:01:27,009 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:01:27,663 - DEBUG - Authentication response: 200
+2025-03-13 14:11:29,015 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:11:29,667 - DEBUG - Authentication response: 200
+2025-03-13 14:21:30,908 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:21:31,546 - DEBUG - Authentication response: 200
+2025-03-13 14:31:32,938 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:31:33,593 - DEBUG - Authentication response: 200
+2025-03-13 14:41:34,922 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:41:35,579 - DEBUG - Authentication response: 200
+2025-03-13 14:51:36,787 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 14:51:37,444 - DEBUG - Authentication response: 200
+2025-03-13 15:01:38,903 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:01:39,544 - DEBUG - Authentication response: 200
+2025-03-13 15:11:40,870 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:11:41,539 - DEBUG - Authentication response: 200
+2025-03-13 15:21:42,646 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:21:43,284 - DEBUG - Authentication response: 200
+2025-03-13 15:31:44,502 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:31:45,156 - DEBUG - Authentication response: 200
+2025-03-13 15:41:46,415 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:41:47,089 - DEBUG - Authentication response: 200
+2025-03-13 15:51:48,465 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 15:51:49,117 - DEBUG - Authentication response: 200
+2025-03-13 16:01:50,270 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:01:50,933 - DEBUG - Authentication response: 200
+2025-03-13 16:11:52,335 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:11:52,992 - DEBUG - Authentication response: 200
+2025-03-13 16:21:54,452 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:21:55,099 - DEBUG - Authentication response: 200
+2025-03-13 16:31:56,560 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:31:57,198 - DEBUG - Authentication response: 200
+2025-03-13 16:41:58,597 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:41:59,257 - DEBUG - Authentication response: 200
+2025-03-13 16:52:00,400 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 16:52:01,039 - DEBUG - Authentication response: 200
+2025-03-13 17:02:02,380 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:02:03,017 - DEBUG - Authentication response: 200
+2025-03-13 17:12:04,298 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:12:04,923 - DEBUG - Authentication response: 200
+2025-03-13 17:22:06,092 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:22:06,727 - DEBUG - Authentication response: 200
+2025-03-13 17:32:08,023 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:32:08,651 - DEBUG - Authentication response: 200
+2025-03-13 17:42:09,753 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:42:10,380 - DEBUG - Authentication response: 200
+2025-03-13 17:52:11,819 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 17:52:12,455 - DEBUG - Authentication response: 200
+2025-03-13 18:02:13,783 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:02:16,347 - DEBUG - Authentication response: 200
+2025-03-13 18:12:17,533 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:12:18,163 - DEBUG - Authentication response: 200
+2025-03-13 18:22:19,460 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:22:20,091 - DEBUG - Authentication response: 200
+2025-03-13 18:32:21,352 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:32:21,974 - DEBUG - Authentication response: 200
+2025-03-13 18:42:23,378 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:42:24,018 - DEBUG - Authentication response: 200
+2025-03-13 18:52:25,313 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 18:52:25,938 - DEBUG - Authentication response: 200
+2025-03-13 19:02:27,217 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:02:27,837 - DEBUG - Authentication response: 200
+2025-03-13 19:12:29,206 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:12:29,848 - DEBUG - Authentication response: 200
+2025-03-13 19:22:31,187 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:22:31,811 - DEBUG - Authentication response: 200
+2025-03-13 19:32:33,219 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:32:33,889 - DEBUG - Authentication response: 200
+2025-03-13 19:42:35,352 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:42:35,995 - DEBUG - Authentication response: 200
+2025-03-13 19:52:37,231 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 19:52:37,867 - DEBUG - Authentication response: 200
+2025-03-13 20:02:39,171 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:02:39,821 - DEBUG - Authentication response: 200
+2025-03-13 20:12:41,029 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:12:41,648 - DEBUG - Authentication response: 200
+2025-03-13 20:22:42,732 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:22:43,366 - DEBUG - Authentication response: 200
+2025-03-13 20:32:44,834 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:32:45,477 - DEBUG - Authentication response: 200
+2025-03-13 20:42:46,638 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:42:47,274 - DEBUG - Authentication response: 200
+2025-03-13 20:52:48,546 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 20:52:49,182 - DEBUG - Authentication response: 200
+2025-03-13 21:02:50,598 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:02:51,230 - DEBUG - Authentication response: 200
+2025-03-13 21:12:52,663 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:12:53,310 - DEBUG - Authentication response: 200
+2025-03-13 21:22:54,698 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:22:55,339 - DEBUG - Authentication response: 200
+2025-03-13 21:32:56,558 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:32:57,200 - DEBUG - Authentication response: 200
+2025-03-13 21:42:58,414 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:42:59,065 - DEBUG - Authentication response: 200
+2025-03-13 21:53:00,346 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 21:53:00,987 - DEBUG - Authentication response: 200
+2025-03-13 22:03:02,354 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:03:02,996 - DEBUG - Authentication response: 200
+2025-03-13 22:13:04,345 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:13:05,016 - DEBUG - Authentication response: 200
+2025-03-13 22:23:06,258 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:23:06,914 - DEBUG - Authentication response: 200
+2025-03-13 22:33:08,300 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:33:08,955 - DEBUG - Authentication response: 200
+2025-03-13 22:43:10,346 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:43:10,999 - DEBUG - Authentication response: 200
+2025-03-13 22:53:12,410 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 22:53:13,054 - DEBUG - Authentication response: 200
+2025-03-13 23:03:14,378 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:03:15,071 - DEBUG - Authentication response: 200
+2025-03-13 23:13:16,492 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:13:17,136 - DEBUG - Authentication response: 200
+2025-03-13 23:23:18,266 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:23:18,912 - DEBUG - Authentication response: 200
+2025-03-13 23:33:20,271 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:33:20,927 - DEBUG - Authentication response: 200
+2025-03-13 23:43:22,372 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:43:23,938 - DEBUG - Authentication response: 200
+2025-03-13 23:53:25,387 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-13 23:53:26,038 - DEBUG - Authentication response: 200
+2025-03-14 00:03:27,390 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:03:28,038 - DEBUG - Authentication response: 200
+2025-03-14 00:13:29,128 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:13:29,777 - DEBUG - Authentication response: 200
+2025-03-14 00:23:30,997 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:23:31,657 - DEBUG - Authentication response: 200
+2025-03-14 00:33:32,928 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:33:33,550 - DEBUG - Authentication response: 200
+2025-03-14 00:43:34,630 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:43:35,298 - DEBUG - Authentication response: 200
+2025-03-14 00:53:36,581 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 00:53:37,255 - DEBUG - Authentication response: 200
+2025-03-14 01:03:38,529 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:03:39,177 - DEBUG - Authentication response: 200
+2025-03-14 01:13:40,409 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:13:41,060 - DEBUG - Authentication response: 200
+2025-03-14 01:23:42,238 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:23:42,897 - DEBUG - Authentication response: 200
+2025-03-14 01:33:44,037 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:33:44,703 - DEBUG - Authentication response: 200
+2025-03-14 01:43:45,992 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:43:46,637 - DEBUG - Authentication response: 200
+2025-03-14 01:53:47,831 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 01:53:48,468 - DEBUG - Authentication response: 200
+2025-03-14 02:03:49,715 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:03:50,331 - DEBUG - Authentication response: 200
+2025-03-14 02:13:51,577 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:13:52,233 - DEBUG - Authentication response: 200
+2025-03-14 02:23:53,721 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:23:54,365 - DEBUG - Authentication response: 200
+2025-03-14 02:33:55,528 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:33:56,200 - DEBUG - Authentication response: 200
+2025-03-14 02:43:57,443 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:43:58,079 - DEBUG - Authentication response: 200
+2025-03-14 02:53:59,268 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 02:53:59,910 - DEBUG - Authentication response: 200
+2025-03-14 03:04:01,096 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:04:01,747 - DEBUG - Authentication response: 200
+2025-03-14 03:14:03,206 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:14:03,857 - DEBUG - Authentication response: 200
+2025-03-14 03:24:04,946 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:24:05,600 - DEBUG - Authentication response: 200
+2025-03-14 03:34:06,911 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:34:07,556 - DEBUG - Authentication response: 200
+2025-03-14 03:44:08,916 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:44:09,558 - DEBUG - Authentication response: 200
+2025-03-14 03:54:10,947 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 03:54:11,593 - DEBUG - Authentication response: 200
+2025-03-14 04:04:13,009 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:04:13,635 - DEBUG - Authentication response: 200
+2025-03-14 04:14:14,827 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:14:15,482 - DEBUG - Authentication response: 200
+2025-03-14 04:24:16,906 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:24:17,566 - DEBUG - Authentication response: 200
+2025-03-14 04:34:18,758 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:34:19,426 - DEBUG - Authentication response: 200
+2025-03-14 04:44:20,698 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:44:21,340 - DEBUG - Authentication response: 200
+2025-03-14 04:54:22,595 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 04:54:23,245 - DEBUG - Authentication response: 200
+2025-03-14 05:04:24,443 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:04:25,098 - DEBUG - Authentication response: 200
+2025-03-14 05:14:26,487 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:14:29,082 - DEBUG - Authentication response: 200
+2025-03-14 05:24:31,604 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:24:32,249 - DEBUG - Authentication response: 200
+2025-03-14 05:34:33,691 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:34:35,256 - DEBUG - Authentication response: 200
+2025-03-14 05:44:36,650 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:44:37,321 - DEBUG - Authentication response: 200
+2025-03-14 05:54:38,782 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 05:54:39,489 - DEBUG - Authentication response: 200
+2025-03-14 06:04:40,745 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:04:41,532 - DEBUG - Authentication response: 200
+2025-03-14 06:14:42,684 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:14:43,344 - DEBUG - Authentication response: 200
+2025-03-14 06:24:44,584 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:24:45,252 - DEBUG - Authentication response: 200
+2025-03-14 06:34:46,511 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:34:47,180 - DEBUG - Authentication response: 200
+2025-03-14 06:44:48,538 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:44:49,192 - DEBUG - Authentication response: 200
+2025-03-14 06:54:50,588 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 06:54:51,249 - DEBUG - Authentication response: 200
+2025-03-14 07:04:52,633 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:04:53,278 - DEBUG - Authentication response: 200
+2025-03-14 07:14:54,600 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:14:55,250 - DEBUG - Authentication response: 200
+2025-03-14 07:24:56,383 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:24:57,042 - DEBUG - Authentication response: 200
+2025-03-14 07:34:58,444 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:34:59,113 - DEBUG - Authentication response: 200
+2025-03-14 07:45:00,400 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:45:01,068 - DEBUG - Authentication response: 200
+2025-03-14 07:55:02,558 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 07:55:03,220 - DEBUG - Authentication response: 200
+2025-03-14 08:05:04,431 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:05:05,072 - DEBUG - Authentication response: 200
+2025-03-14 08:15:06,497 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:15:07,148 - DEBUG - Authentication response: 200
+2025-03-14 08:25:08,349 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:25:09,014 - DEBUG - Authentication response: 200
+2025-03-14 08:35:10,473 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:35:11,109 - DEBUG - Authentication response: 200
+2025-03-14 08:45:12,220 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:45:12,859 - DEBUG - Authentication response: 200
+2025-03-14 08:55:14,276 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 08:55:14,930 - DEBUG - Authentication response: 200
+2025-03-14 09:05:16,133 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:05:16,791 - DEBUG - Authentication response: 200
+2025-03-14 09:15:18,268 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:15:18,921 - DEBUG - Authentication response: 200
+2025-03-14 09:25:20,196 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:25:20,870 - DEBUG - Authentication response: 200
+2025-03-14 09:35:22,277 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:35:22,914 - DEBUG - Authentication response: 200
+2025-03-14 09:45:24,261 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:45:24,942 - DEBUG - Authentication response: 200
+2025-03-14 09:55:26,250 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 09:55:26,905 - DEBUG - Authentication response: 200
+2025-03-14 10:05:28,070 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:05:28,700 - DEBUG - Authentication response: 200
+2025-03-14 10:15:30,020 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:15:30,683 - DEBUG - Authentication response: 200
+2025-03-14 10:25:32,191 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:25:32,851 - DEBUG - Authentication response: 200
+2025-03-14 10:35:34,361 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:35:35,028 - DEBUG - Authentication response: 200
+2025-03-14 10:45:36,206 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:45:36,871 - DEBUG - Authentication response: 200
+2025-03-14 10:55:38,020 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 10:55:38,816 - DEBUG - Authentication response: 200
+2025-03-14 11:05:40,090 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:05:40,757 - DEBUG - Authentication response: 200
+2025-03-14 11:15:42,172 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:15:42,823 - DEBUG - Authentication response: 200
+2025-03-14 11:25:44,314 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:25:44,968 - DEBUG - Authentication response: 200
+2025-03-14 11:35:46,406 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:35:47,042 - DEBUG - Authentication response: 200
+2025-03-14 11:45:48,497 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:45:49,144 - DEBUG - Authentication response: 200
+2025-03-14 11:55:50,562 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 11:55:51,242 - DEBUG - Authentication response: 200
+2025-03-14 12:05:52,722 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:05:55,306 - DEBUG - Authentication response: 200
+2025-03-14 12:15:56,570 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:15:57,245 - DEBUG - Authentication response: 200
+2025-03-14 12:25:58,724 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:25:59,373 - DEBUG - Authentication response: 200
+2025-03-14 12:36:00,854 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:36:01,518 - DEBUG - Authentication response: 200
+2025-03-14 12:46:02,752 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:46:03,422 - DEBUG - Authentication response: 200
+2025-03-14 12:56:04,644 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 12:56:05,313 - DEBUG - Authentication response: 200
+2025-03-14 13:06:06,498 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:06:07,168 - DEBUG - Authentication response: 200
+2025-03-14 13:16:08,601 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:16:09,259 - DEBUG - Authentication response: 200
+2025-03-14 13:26:10,524 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:26:11,183 - DEBUG - Authentication response: 200
+2025-03-14 13:36:12,437 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:36:13,222 - DEBUG - Authentication response: 200
+2025-03-14 13:46:14,323 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:46:14,973 - DEBUG - Authentication response: 200
+2025-03-14 13:56:16,359 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 13:56:16,998 - DEBUG - Authentication response: 200
+2025-03-14 14:06:18,337 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:06:19,016 - DEBUG - Authentication response: 200
+2025-03-14 14:16:20,414 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:16:21,087 - DEBUG - Authentication response: 200
+2025-03-14 14:26:22,225 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:26:23,426 - DEBUG - Authentication response: 200
+2025-03-14 14:36:24,670 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:36:25,318 - DEBUG - Authentication response: 200
+2025-03-14 14:46:26,484 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:46:27,135 - DEBUG - Authentication response: 200
+2025-03-14 14:56:28,554 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 14:56:29,262 - DEBUG - Authentication response: 200
+2025-03-14 15:06:30,668 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:06:31,314 - DEBUG - Authentication response: 200
+2025-03-14 15:16:32,610 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:16:33,267 - DEBUG - Authentication response: 200
+2025-03-14 15:26:34,368 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:26:35,022 - DEBUG - Authentication response: 200
+2025-03-14 15:36:36,326 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:36:37,006 - DEBUG - Authentication response: 200
+2025-03-14 15:46:38,182 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:46:38,859 - DEBUG - Authentication response: 200
+2025-03-14 15:56:39,976 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 15:56:40,643 - DEBUG - Authentication response: 200
+2025-03-14 16:06:41,820 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:06:42,494 - DEBUG - Authentication response: 200
+2025-03-14 16:16:43,628 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:16:44,324 - DEBUG - Authentication response: 200
+2025-03-14 16:26:45,547 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:26:46,201 - DEBUG - Authentication response: 200
+2025-03-14 16:36:47,704 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:36:48,370 - DEBUG - Authentication response: 200
+2025-03-14 16:46:49,849 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:46:50,510 - DEBUG - Authentication response: 200
+2025-03-14 16:56:51,667 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 16:56:52,345 - DEBUG - Authentication response: 200
+2025-03-14 17:06:53,710 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:06:54,376 - DEBUG - Authentication response: 200
+2025-03-14 17:16:55,846 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:16:56,515 - DEBUG - Authentication response: 200
+2025-03-14 17:26:57,877 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:26:58,528 - DEBUG - Authentication response: 200
+2025-03-14 17:36:59,972 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:37:00,632 - DEBUG - Authentication response: 200
+2025-03-14 17:47:01,814 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:47:02,447 - DEBUG - Authentication response: 200
+2025-03-14 17:57:03,918 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 17:57:04,583 - DEBUG - Authentication response: 200
+2025-03-14 18:07:06,049 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 18:07:06,706 - DEBUG - Authentication response: 200
+2025-03-14 18:17:08,089 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 18:17:08,763 - DEBUG - Authentication response: 200
+2025-03-14 18:27:10,179 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 18:27:10,840 - DEBUG - Authentication response: 200
+2025-03-14 18:37:12,287 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 18:37:12,965 - DEBUG - Authentication response: 200
+2025-03-14 18:47:14,375 - DEBUG - Authentication request to https://demo-api-capital.backend-capital.com/api/v1/session
+2025-03-14 18:47:15,037 - DEBUG - Authentication response: 200

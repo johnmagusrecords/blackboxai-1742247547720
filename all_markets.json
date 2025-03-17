@@ -1,0 +1,36 @@
+{
+    "nodes": [
+        {
+            "id": "hierarchy_v1.commons_group",
+            "name": "commons_group"
+        },
+        {
+            "id": "hierarchy_v1.commodities_group",
+            "name": "commodities_group"
+        },
+        {
+            "id": "hierarchy_v1.oil_markets_group",
+            "name": "oil_markets_group"
+        },
+        {
+            "id": "hierarchy_v1.indices_group",
+            "name": "indices_group"
+        },
+        {
+            "id": "hierarchy_v1.forex",
+            "name": "Forex"
+        },
+        {
+            "id": "hierarchy_v1.crypto_currencies_group",
+            "name": "crypto_currencies_group"
+        },
+        {
+            "id": "hierarchy_v1.shares",
+            "name": "Shares"
+        },
+        {
+            "id": "hierarchy_v1.etf_group",
+            "name": "etf_group"
+        }
+    ]
+}

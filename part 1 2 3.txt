@@ -1,0 +1,2126 @@
+import os
+import time
+import threading
+import logging
+import requests
+import pandas as pd
+import numpy as np
+import talib
+import json
+import re
+from flask import Flask, request, render_template_string, redirect
+from dotenv import load_dotenv
+from datetime import datetime, date, timedelta
+from newsapi import NewsApiClient
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import telegram
+import pkg_resources
+
+# Load environment variables
+load_dotenv()
+
+# Logging configuration
+logging.basicConfig(level=logging.INFO)
+
+# Credentials and API configuration
+CAPITAL_API_KEY      = os.getenv("CAPITAL_API_KEY")
+CAPITAL_API_PASSWORD = os.getenv("CAPITAL_API_PASSWORD")
+CAPITAL_IDENTIFIER   = os.getenv("CAPITAL_API_IDENTIFIER")
+CAPITAL_API_URL      = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
+NEWS_API_KEY         = os.getenv("NEWS_API_KEY")
+TELEGRAM_TOKEN       = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID     = os.getenv("TELEGRAM_CHAT_ID")
+DASHBOARD_PASSWORD   = os.getenv("DASHBOARD_PASSWORD", "1234")
+
+# Strategy mode and risk parameters
+STRATEGY_MODE      = os.getenv("STRATEGY_MODE", "Balanced")
+DAILY_LOSS_LIMIT   = float(os.getenv("DAILY_LOSS_LIMIT", -500))
+DAILY_PROFIT_LIMIT = float(os.getenv("DAILY_PROFIT_LIMIT", 1000))
+START_HOUR         = int(os.getenv("START_HOUR", 0))
+END_HOUR           = int(os.getenv("END_HOUR", 24))
+CLOSE_HOUR         = int(os.getenv("CLOSE_HOUR", -1))
+USE_ALL_MARKETS    = os.getenv("USE_ALL_MARKETS", "True").lower() == "true"
+CONFIRMATION_MODE  = os.getenv("CONFIRMATION_MODE", "False").lower() == "true"
+WEBHOOK_TOKEN      = os.getenv("WEBHOOK_TOKEN")
+
+# Mode-specific settings
+if STRATEGY_MODE == "Safe":
+    TRADE_INTERVAL    = 600        # 10 minutes between cycles
+    TP_MOVE_PERCENT   = 0.3 / 100  # 0.3% move to trail TP
+    BREAKEVEN_TRIGGER = 0.5 / 100  # 0.5% move to bring SL to breakeven
+    RISK_PERCENT      = 1          # 1% risk per trade
+elif STRATEGY_MODE == "Aggressive":
+    TRADE_INTERVAL    = 120       # 2 minutes between cycles
+    TP_MOVE_PERCENT   = 1.0 / 100 # 1% move to trail TP
+    BREAKEVEN_TRIGGER = 1.5 / 100 # 1.5% move to breakeven
+    RISK_PERCENT      = 3         # 3% risk per trade
+else:  # Balanced (default)
+    TRADE_INTERVAL    = 300       # 5 minutes between cycles
+    TP_MOVE_PERCENT   = 0.5 / 100 # 0.5% move to trail TP
+    BREAKEVEN_TRIGGER = 1.0 / 100 # 1% move to breakeven
+    RISK_PERCENT      = 2         # 2% risk per trade
+
+# Market data caching and status
+MARKET_CACHE = {}        # Stores fetched market data and metadata
+MARKET_CACHE_TTL = 3600  # Cache lifetime in seconds (1 hour)
+MARKET_STATUS_CACHE = {} # Cache for market open/close status
+MARKET_STATUS_TTL = 300  # Status cache lifetime (5 minutes)
+
+# News configuration
+ARABIC_NEWS_RSS_URL = os.getenv("ARABIC_NEWS_RSS_URL", "")
+NEWS_CHECK_INTERVAL = int(os.getenv("NEWS_CHECK_INTERVAL", 300))
+
+# Telegram setup (support for v20+ of python-telegram-bot)
+telegram_version = pkg_resources.get_distribution("python-telegram-bot").version
+is_telegram_async = int(telegram_version.split('.')[0]) >= 20
+if is_telegram_async:
+    import asyncio
+    from telegram.ext import ApplicationBuilder, CommandHandler
+    telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    telegram_bot = telegram_app.bot
+else:
+    telegram_bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+# Rate limiting control for API calls
+API_CALL_INTERVAL = 0.5  # Minimum seconds between API calls
+LAST_API_CALL_TIME = 0
+
+def throttle_api_call():
+    """Throttle API calls to avoid hitting rate limits."""
+    global LAST_API_CALL_TIME
+    current_time = time.time()
+    elapsed = current_time - LAST_API_CALL_TIME
+    if elapsed < API_CALL_INTERVAL:
+        time.sleep(API_CALL_INTERVAL - elapsed)
+    LAST_API_CALL_TIME = time.time()
+
+# Trade history persistence
+TRADE_HISTORY_FILE = "trade_history.csv"
+EQUITY_CURVE_FILE  = "equity_curve.csv"
+
+def save_trade_to_csv(timestamp, symbol, action, tp, sl, result=None):
+    """Append a trade record to the trade history CSV file."""
+    df = pd.DataFrame([[timestamp, symbol, action, tp, sl, result]],
+                      columns=["Time", "Symbol", "Action", "TP", "SL", "Result"])
+    df.to_csv(TRADE_HISTORY_FILE, mode='a', header=not os.path.exists(TRADE_HISTORY_FILE), index=False)
+
+def load_trade_history():
+    """Load the most recent trade records from history (up to 100 entries)."""
+    if os.path.exists(TRADE_HISTORY_FILE):
+        try:
+            return pd.read_csv(TRADE_HISTORY_FILE).tail(100).to_dict(orient='records')
+        except Exception as e:
+            logging.error(f"Failed to load trade history: {e}")
+            return []
+    return []
+
+def clear_trade_history():
+    """Clear the trade history file."""
+    if os.path.exists(TRADE_HISTORY_FILE):
+        os.remove(TRADE_HISTORY_FILE)
+        logging.info("Trade history cleared.")
+
+# Initialize Flask for dashboard and webhook
+app = Flask(__name__)
+
+
+    def calculate_take_profit(self, price: float, direction: str, atr_multiplier: float = 2):
+        """Calculate a take-profit level given price and direction."""
+        try:
+            if direction == 'BUY':
+                return price * (1 + atr_multiplier * 0.01)  # e.g. 2% above for buys
+            else:
+                return price * (1 - atr_multiplier * 0.01)  # e.g. 2% below for sells
+        except Exception as e:
+            logging.error(f"Error calculating TP: {e}")
+            return None
+
+    def calculate_stop_loss(self, price: float, direction: str, atr_multiplier: float = 1):
+        """Calculate a stop-loss level given price and direction."""
+        try:
+            if direction == 'BUY':
+                return price * (1 - atr_multiplier * 0.01)  # e.g. 1% below entry for buys
+            else:
+                return price * (1 + atr_multiplier * 0.01)  # e.g. 1% above entry for sells
+        except Exception as e:
+            logging.error(f"Error calculating SL: {e}")
+            return None
+
+    def is_market_open(self, symbol: str) -> bool:
+        """Check if a market is currently open for trading."""
+        try:
+            cache_key = normalize_symbol(symbol)
+            current_time = time.time()
+            # Check cached status
+            if cache_key in MARKET_STATUS_CACHE:
+                data = MARKET_STATUS_CACHE[cache_key]
+                if current_time - data['timestamp'] < MARKET_STATUS_TTL:
+                    return data['is_open']
+            # Query market status via API
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return False
+            throttle_api_call()
+            response = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                        params={'searchTerm': symbol},
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code == 200:
+                markets = response.json().get('markets', [])
+                for m in markets:
+                    if normalize_symbol(m.get('instrumentName', '')) == cache_key:
+                        is_open = (m.get('marketStatus') == 'TRADEABLE')
+                        MARKET_STATUS_CACHE[cache_key] = {'is_open': is_open, 'timestamp': current_time}
+                        return is_open
+            # If API call fails or symbol not found, assume closed
+            MARKET_STATUS_CACHE[cache_key] = {'is_open': False, 'timestamp': current_time}
+            return False
+        except Exception as e:
+            logging.error(f"Error checking market status for {symbol}: {e}")
+            return False
+
+    def get_current_price(self, symbol: str) -> float:
+        """Get the latest price for a symbol (using cached data if available)."""
+        try:
+            data = None
+            cache_key = normalize_symbol(symbol)
+            if cache_key in MARKET_CACHE:
+                data = MARKET_CACHE[cache_key]['data']
+            else:
+                data = self.get_market_data(symbol)
+            if data is not None and not data.empty:
+                return float(data['close'].iloc[-1])
+            return None
+        except Exception as e:
+            logging.error(f"Error getting current price for {symbol}: {e}")
+            return None
+
+    # News monitoring loop (background thread)
+    def news_loop(self):
+        """Background loop to periodically check news and send alerts."""
+        while True:
+            self.check_news()
+            time.sleep(NEWS_CHECK_INTERVAL)
+
+    def check_news(self):
+        """Fetch latest news from configured sources and send alerts for new items."""
+        # Arabic news via RSS feed
+        if ARABIC_NEWS_RSS_URL:
+            try:
+                resp = requests.get(ARABIC_NEWS_RSS_URL, timeout=5)
+                if resp.status_code == 200:
+                    content = resp.text
+                    # Naively parse the first news item title from RSS (assuming RSS format)
+                    match = re.search(r'<item>.*?<title>([^<]+)</title>', content, re.DOTALL)
+                    if match:
+                        title = match.group(1)
+                        if title != self.last_news_title:
+                            # New headline found
+                            self.last_news_title = title
+                            asyncio.run(send_telegram_message(f"📰 [Arabic] {title}"))
+                            logging.info(f"Arabic news alert sent: {title}")
+            except Exception as e:
+                logging.error(f"Error fetching Arabic news RSS: {e}")
+        # English news via NewsAPI top headlines
+        if newsapi:
+            try:
+                top_headlines = newsapi.get_top_headlines(language='en', page_size=1)
+                articles = top_headlines.get('articles', []) if top_headlines else []
+                if articles:
+                    headline = articles[0]['title']
+                    if headline != self.last_english_headline:
+                        self.last_english_headline = headline
+                        asyncio.run(send_telegram_message(f"📰 {headline}"))
+                        logging.info(f"English news alert sent: {headline}")
+            except Exception as e:
+                logging.error(f"Error fetching English news: {e}")
+
+    def run(self):
+        """Main bot loop: scans markets and executes trades based on signals."""
+        logging.info(f"Starting trading bot in {STRATEGY_MODE} mode.")
+        asyncio.run(send_telegram_message(f"🚀 MAGUS PRIME X Bot Started\nMode: {STRATEGY_MODE}\nRisk per Trade: {RISK_PERCENT}%"))
+        while True:
+            try:
+                now = datetime.now()
+                # Reset daily P/L and unpause at start of a new day
+                if now.date() != self.current_day:
+                    self.current_day = now.date()
+                    self.daily_pnl = 0.0
+                    os.environ['BOT_PAUSED'] = '0'
+                    logging.info("New
+# MAGUS PRIME X – Full Trading Bot Script (`bot.py`)
+
+```python
+import os
+import time
+import threading
+import logging
+import requests
+import pandas as pd
+import numpy as np
+import talib
+import json
+import re
+from flask import Flask, request, render_template_string, redirect
+from dotenv import load_dotenv
+from datetime import datetime, date, timedelta
+from newsapi import NewsApiClient
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import telegram
+import pkg_resources
+
+# Load environment variables
+load_dotenv()
+
+# Logging configuration
+logging.basicConfig(level=logging.INFO)
+
+# Credentials and API configuration
+CAPITAL_API_KEY      = os.getenv("CAPITAL_API_KEY")
+CAPITAL_API_PASSWORD = os.getenv("CAPITAL_API_PASSWORD")
+CAPITAL_IDENTIFIER   = os.getenv("CAPITAL_API_IDENTIFIER")
+CAPITAL_API_URL      = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
+NEWS_API_KEY         = os.getenv("NEWS_API_KEY")
+TELEGRAM_TOKEN       = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID     = os.getenv("TELEGRAM_CHAT_ID")
+DASHBOARD_PASSWORD   = os.getenv("DASHBOARD_PASSWORD", "1234")
+
+# Strategy mode and risk parameters
+STRATEGY_MODE      = os.getenv("STRATEGY_MODE", "Balanced")
+DAILY_LOSS_LIMIT   = float(os.getenv("DAILY_LOSS_LIMIT", -500))
+DAILY_PROFIT_LIMIT = float(os.getenv("DAILY_PROFIT_LIMIT", 1000))
+START_HOUR         = int(os.getenv("START_HOUR", 0))
+END_HOUR           = int(os.getenv("END_HOUR", 24))
+CLOSE_HOUR         = int(os.getenv("CLOSE_HOUR", -1))
+USE_ALL_MARKETS    = os.getenv("USE_ALL_MARKETS", "True").lower() == "true"
+CONFIRMATION_MODE  = os.getenv("CONFIRMATION_MODE", "False").lower() == "true"
+WEBHOOK_TOKEN      = os.getenv("WEBHOOK_TOKEN")
+
+# Mode-specific settings
+if STRATEGY_MODE == "Safe":
+    TRADE_INTERVAL = 600
+    TP_MOVE_PERCENT = 0.3 / 100
+    BREAKEVEN_TRIGGER = 0.5 / 100
+    RISK_PERCENT = 1
+elif STRATEGY_MODE == "Aggressive":
+    TRADE_INTERVAL = 120
+    TP_MOVE_PERCENT = 1.0 / 100
+    BREAKEVEN_TRIGGER = 1.5 / 100
+    RISK_PERCENT = 3
+else:  # Balanced
+    TRADE_INTERVAL = 300
+    TP_MOVE_PERCENT = 0.5 / 100
+    BREAKEVEN_TRIGGER = 1.0 / 100
+    RISK_PERCENT = 2
+
+# Market data caching and status
+MARKET_CACHE = {}
+MARKET_CACHE_TTL = 3600
+MARKET_STATUS_CACHE = {}
+MARKET_STATUS_TTL = 300
+
+# News configuration
+ARABIC_NEWS_RSS_URL = os.getenv("ARABIC_NEWS_RSS_URL", "")
+NEWS_CHECK_INTERVAL = int(os.getenv("NEWS_CHECK_INTERVAL", 300))
+
+# Telegram setup
+telegram_version = pkg_resources.get_distribution("python-telegram-bot").version
+is_telegram_async = int(telegram_version.split('.')[0]) >= 20
+if is_telegram_async:
+    import asyncio
+    from telegram.ext import ApplicationBuilder, CommandHandler
+    telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    telegram_bot = telegram_app.bot
+else:
+    telegram_bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+# Rate limiting control
+API_CALL_INTERVAL = 0.5
+LAST_API_CALL_TIME = 0
+
+async def send_telegram_message(message: str):
+    """Send a Telegram message (supports async and sync modes)."""
+    try:
+        if is_telegram_async:
+            await telegram_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        else:
+            telegram_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logging.info(f"Telegram message sent: {message[:50]}...")
+    except Exception as e:
+        logging.error(f"Telegram send error: {e}")
+
+def throttle_api_call():
+    """Ensure a minimum delay between API calls."""
+    global LAST_API_CALL_TIME
+    elapsed = time.time() - LAST_API_CALL_TIME
+    if elapsed < API_CALL_INTERVAL:
+        time.sleep(API_CALL_INTERVAL - elapsed)
+    LAST_API_CALL_TIME = time.time()
+
+# Trade history persistence
+TRADE_HISTORY_FILE = "trade_history.csv"
+def save_trade_to_csv(timestamp, symbol, action, tp, sl, result=None):
+    df = pd.DataFrame([[timestamp, symbol, action, tp, sl, result]],
+                      columns=["Time", "Symbol", "Action", "TP", "SL", "Result"])
+    df.to_csv(TRADE_HISTORY_FILE, mode='a', header=not os.path.exists(TRADE_HISTORY_FILE), index=False)
+
+def load_trade_history():
+    if os.path.exists(TRADE_HISTORY_FILE):
+        try:
+            return pd.read_csv(TRADE_HISTORY_FILE).tail(100).to_dict(orient='records')
+        except Exception as e:
+            logging.error(f"Error reading trade history: {e}")
+    return []
+
+def clear_trade_history():
+    if os.path.exists(TRADE_HISTORY_FILE):
+        os.remove(TRADE_HISTORY_FILE)
+        logging.info("Trade history cleared.")
+
+# Symbol normalization and matching
+def normalize_symbol(symbol: str) -> str:
+    return re.sub(r'[\s/_\-]', '', str(symbol)).upper()
+
+def find_market_match(symbol: str, markets: list) -> dict:
+    normalized = normalize_symbol(symbol)
+    attempted = []
+    for m in markets:
+        name = normalize_symbol(m.get('instrumentName', ''))
+        if name == normalized:
+            logging.info(f"[Match] Exact match: {symbol} -> {m['instrumentName']}")
+            return m
+        attempted.append(f"Name: {name}")
+    for m in markets:
+        name = normalize_symbol(m.get('instrumentName', ''))
+        if normalized in name or name in normalized:
+            logging.info(f"[Match] Partial match: {symbol} -> {m['instrumentName']}")
+            return m
+        attempted.append(f"Partial: {name}")
+    for m in markets:
+        epic = normalize_symbol(m.get('epic', ''))
+        if normalized in epic or epic in normalized:
+            logging.info(f"[Match] Epic match: {symbol} -> {m.get('epic')}")
+            return m
+        attempted.append(f"Epic: {epic}")
+    logging.warning(f"No market match for {symbol}")
+    save_unmatched_symbol(symbol, attempted)
+    return None
+
+def load_unmatched_symbols():
+    if os.path.exists("unmatched_symbols.json"):
+        try:
+            with open("unmatched_symbols.json", 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading unmatched symbols: {e}")
+    return {}
+
+def save_unmatched_symbol(symbol: str, attempts: list):
+    data = load_unmatched_symbols()
+    data[symbol] = {
+        'timestamp': datetime.now().isoformat(),
+        'attempted': attempts,
+        'normalized': normalize_symbol(symbol)
+    }
+    try:
+        with open("unmatched_symbols.json", 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logging.error(f"Error saving unmatched symbol: {e}")
+
+# Initialize News API client (for English news sentiment and alerts)
+newsapi = None
+if NEWS_API_KEY:
+    try:
+        newsapi = NewsApiClient(api_key=NEWS_API_KEY)
+    except Exception as e:
+        logging.error(f"NewsApiClient init error: {e}")
+
+# Flask app for dashboard and webhook
+app = Flask(__name__)
+
+# Trading Bot Class
+class TradingBot:
+    def __init__(self):
+        # Prepare requests session with retries
+        self.session = self.create_session()
+        self.auth_token_cache = {'cst': None, 'security': None, 'expiry': 0}
+        self.rate_limit_retries = 5
+        self.rate_limit_backoff = 2
+
+        # Get all tradeable markets for scanning/validation
+        self.available_markets = self.get_available_markets()
+
+        # Active trade tracking and performance stats
+        self.active_trades = {}
+        self.symbol_performance = {}
+        self.last_trade_outcome = None
+        self.current_day = date.today()
+        self.daily_pnl = 0.0
+
+        # News monitoring thread
+        self.last_news_title = None
+        self.last_english_headline = None
+        if ARABIC_NEWS_RSS_URL or newsapi:
+            threading.Thread(target=self.news_loop, daemon=True).start()
+            logging.info("News monitoring started.")
+
+        # Telegram command handlers (if async)
+        if is_telegram_async:
+            async def cmd_pause(update, context):
+                os.environ['BOT_PAUSED'] = '1'
+                await update.message.reply_text("⏸ Trading paused.")
+            async def cmd_resume(update, context):
+                os.environ['BOT_PAUSED'] = '0'
+                await update.message.reply_text("▶️ Trading resumed.")
+            async def cmd_forcebuy(update, context):
+                args = context.args
+                if not args:
+                    await update.message.reply_text("Usage: /forcebuy SYMBOL [TP] [SL]")
+                    return
+                symbol = args[0]
+                current_price = self.get_current_price(symbol)
+                if not current_price:
+                    await update.message.reply_text(f"❌ Unknown symbol {symbol}")
+                    return
+                # Use provided TP/SL or default 2% TP, 1% SL
+                tp = float(args[1]) if len(args) > 1 else round(current_price * 1.02, 5)
+                sl = float(args[2]) if len(args) > 2 else round(current_price * 0.98, 5)
+                success = self.execute_trade(symbol, "BUY", tp, sl)
+                msg = f"✅ Forced BUY {symbol}" if success else f"❌ Failed BUY {symbol}"
+                await update.message.reply_text(msg)
+            async def cmd_forcesell(update, context):
+                args = context.args
+                if not args:
+                    await update.message.reply_text("Usage: /forcesell SYMBOL [TP] [SL]")
+                    return
+                symbol = args[0]
+                current_price = self.get_current_price(symbol)
+                if not current_price:
+                    await update.message.reply_text(f"❌ Unknown symbol {symbol}")
+                    return
+                tp = float(args[1]) if len(args) > 1 else round(current_price * 0.98, 5)
+                sl = float(args[2]) if len(args) > 2 else round(current_price * 1.02, 5)
+                success = self.execute_trade(symbol, "SELL", tp, sl)
+                msg = f"✅ Forced SELL {symbol}" if success else f"❌ Failed SELL {symbol}"
+                await update.message.reply_text(msg)
+            async def cmd_status(update, context):
+                trades = load_trade_history()
+                wins = sum(1 for t in trades if t.get('Result') == 'WIN')
+                losses = sum(1 for t in trades if t.get('Result') == 'LOSS')
+                total = wins + losses
+                winrate = (wins / total * 100) if total > 0 else 0.0
+                pnl = 0.0
+                for t in trades:
+                    if t.get('Result') == 'WIN':
+                        pnl += abs(float(t['TP']) - float(t['SL']))
+                    elif t.get('Result') == 'LOSS':
+                        pnl -= abs(float(t['TP']) - float(t['SL']))
+                status = (f"Trades: {total}, Wins: {wins}, Losses: {losses}, WinRate: {winrate:.1f}%\n"
+                          f"Net P/L: {pnl:.2f} ({STRATEGY_MODE} mode, Risk {RISK_PERCENT}%)")
+                await update.message.reply_text(status)
+            async def cmd_signal(update, context):
+                args = context.args
+                if not args:
+                    await update.message.reply_text("Usage: /signal SYMBOL")
+                    return
+                symbol = args[0]
+                action, tp, sl, confidence = self.analyze_market(symbol)
+                if action in ['BUY', 'SELL']:
+                    msg = (f"Signal {symbol}: {action}\n"
+                           f"Confidence: {confidence*100:.0f}%\nTP: {tp:.4f}\nSL: {sl:.4f}")
+                else:
+                    msg = f"No strong signal for {symbol}."
+                await update.message.reply_text(msg)
+            async def cmd_dashboard(update, context):
+                await update.message.reply_text("ℹ️ Open the bot's /dashboard in your browser for details.")
+            telegram_app.add_handler(CommandHandler("pause", cmd_pause))
+            telegram_app.add_handler(CommandHandler("resume", cmd_resume))
+            telegram_app.add_handler(CommandHandler("forcebuy", cmd_forcebuy))
+            telegram_app.add_handler(CommandHandler("forcesell", cmd_forcesell))
+            telegram_app.add_handler(CommandHandler("status", cmd_status))
+            telegram_app.add_handler(CommandHandler("signal", cmd_signal))
+            telegram_app.add_handler(CommandHandler("dashboard", cmd_dashboard))
+            logging.info("Telegram command handlers set.")
+
+    def create_session(self):
+        session = requests.Session()
+        retry_strategy = Retry(total=5, backoff_factor=0.2)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
+    def authenticate(self):
+        current_time = time.time()
+        if self.auth_token_cache['cst'] and current_time < self.auth_token_cache['expiry']:
+            return self.auth_token_cache['cst'], self.auth_token_cache['security']
+        url = f"{CAPITAL_API_URL}/session"
+        headers = {"X-CAP-API-KEY": CAPITAL_API_KEY}
+        data = {"identifier": CAPITAL_IDENTIFIER, "password": CAPITAL_API_PASSWORD}
+        for attempt in range(self.rate_limit_retries):
+            try:
+                throttle_api_call()
+                response = self.session.post(url, headers=headers, json=data)
+                if response.status_code == 200:
+                    cst = response.json().get('CST')
+                    sec = response.json().get('X-SECURITY-TOKEN')
+                    self.auth_token_cache = {'cst': cst, 'security': sec, 'expiry': current_time + 3600}
+                    logging.info("Authenticated with Capital.com API.")
+                    return cst, sec
+                if response.status_code == 429 or "too many requests" in response.text.lower():
+                    wait = self.rate_limit_backoff ** attempt
+                    logging.warning(f"Rate limited. Waiting {wait}s before retry.")
+                    time.sleep(wait)
+                    continue
+                else:
+                    logging.error(f"Auth failed: {response.text}")
+                    return None, None
+            except Exception as e:
+                logging.error(f"Auth exception: {e}")
+                return None, None
+        return None, None
+
+    def get_available_markets(self):
+        markets_list = []
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return markets_list
+            throttle_api_call()
+            response = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code == 200:
+                markets = response.json().get('markets', [])
+                markets_list = [m for m in markets if m.get('marketStatus') == 'TRADEABLE']
+                logging.info(f"{len(markets_list)} markets available for trading.")
+        except Exception as e:
+            logging.error(f"Error fetching markets: {e}")
+        return markets_list
+
+    def get_minimum_position_size(self, symbol: str) -> float:
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return 0.1
+            throttle_api_call()
+            resp = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                    params={'searchTerm': symbol},
+                                    headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if resp.status_code == 200:
+                markets = resp.json().get('markets', [])
+                for m in markets:
+                    if m.get('instrumentName') == symbol:
+                        return float(m.get('minDealSize', 0.1) or 0.1)
+        except Exception as e:
+            logging.error(f"Min size lookup error for {symbol}: {e}")
+        return 0.1
+
+    def get_account_info(self):
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            throttle_api_call()
+            resp = self.session.get(f"{CAPITAL_API_URL}/accounts",
+                                    headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if resp.status_code == 200:
+                accounts = resp.json().get('accounts', [])
+                if accounts:
+                    return {'balance': float(accounts[0].get('balance', 0)), 'currency': accounts[0].get('currency', 'USD')}
+        except Exception as e:
+            logging.error(f"Account info error: {e}")
+        return None
+
+    def get_historical_candles(self, epic: str, resolution='MINUTE_15', num_points=50):
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            throttle_api_call()
+            url = f"{CAPITAL_API_URL}/prices/{epic}"
+            params = {'resolution': resolution, 'max': num_points}
+            headers = {"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY}
+            resp = self.session.get(url, headers=headers, params=params)
+            if resp.status_code == 200:
+                prices = resp.json().get('prices', [])
+                if not prices:
+                    return None
+                df = pd.DataFrame([{
+                    'timestamp': pd.to_datetime(p['snapshotTime']),
+                    'open': float(p['openPrice']['bid']),
+                    'high': float(p['highPrice']['bid']),
+                    'low': float(p['lowPrice']['bid']),
+                    'close': float(p['closePrice']['bid']),
+                    'volume': float(p.get('lastTradedVolume', 0))
+                } for p in prices if 'closePrice' in p])
+                if df.empty:
+                    return None
+                df.set_index('timestamp', inplace=True)
+                df.sort_index(inplace=True)
+                return df
+            else:
+                logging.error(f"Historical data fetch failed for epic {epic}: {resp.status_code}")
+        except Exception as e:
+            logging.error(f"Historical data error for {epic}: {e}")
+        return None
+
+    def get_market_data(self, symbol: str):
+        try:
+            key = normalize_symbol(symbol)
+            now_ts = time.time()
+            if key in MARKET_CACHE:
+                if now_ts - MARKET_CACHE[key]['timestamp'] < MARKET_CACHE_TTL:
+                    return MARKET_CACHE[key]['data']
+            # Fetch market info and data
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            throttle_api_call()
+            search_resp = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                           params={'searchTerm': symbol},
+                                           headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if search_resp.status_code != 200:
+                return None
+            markets = search_resp.json().get('markets', [])
+            if not markets:
+                return None
+            market = find_market_match(symbol, markets)
+            if not market:
+                return None
+            epic = market.get('epic')
+            if market.get('marketStatus') != 'TRADEABLE':
+                return None
+            data = self.get_historical_candles(epic, resolution='MINUTE_15', num_points=100)
+            if data is not None:
+                MARKET_CACHE[key] = {'data': data, 'timestamp': now_ts, 'epic': epic, 'market': market}
+            return data
+        except Exception as e:
+            logging.error(f"Error getting data for {symbol}: {e}")
+            return None
+
+    def calculate_indicators(self, data: pd.DataFrame) -> dict:
+        try:
+            if data is None or data.empty:
+                return None
+            close = data['close'].astype(float).values
+            high = data['high'].astype(float).values
+            low = data['low'].astype(float).values
+            open_prices = data['open'].astype(float).values
+            ind = {}
+            ind['sma20'] = talib.SMA(close, timeperiod=20)[-1]
+            ind['rsi'] = talib.RSI(close, timeperiod=14)[-1]
+            macd, macd_signal, _ = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+            ind['macd'] = macd[-1]; ind['macd_signal'] = macd_signal[-1]
+            upper, middle, lower = talib.BBANDS(close, timeperiod=20)
+            ind['bb_upper'] = upper[-1]; ind['bb_lower'] = lower[-1]
+            ind['ema9'] = talib.EMA(close, timeperiod=9)[-1]
+            ind['ema21'] = talib.EMA(close, timeperiod=21)[-1]
+            # Include raw arrays for candlestick analysis
+            ind['open'] = open_prices; ind['high'] = high; ind['low'] = low; ind['close'] = close
+            return ind
+        except Exception as e:
+            logging.error(f"Indicator calc error: {e}")
+            return None
+
+    def analyze_market(self, symbol: str):
+        try:
+            data = self.get_market_data(symbol)
+            if data is None:
+                return 'HOLD', None, None, 0.0
+            indicators = self.calculate_indicators(data)
+            if indicators is None:
+                return 'HOLD', None, None, 0.0
+            price = float(data['close'].iloc[-1])
+            signals = []
+            # Trend (20 SMA)
+            if price > indicators['sma20']:
+                signals.append(1)
+            else:
+                signals.append(-1)
+            # RSI
+            if indicators['rsi'] < 30:
+                signals.append(1)
+            elif indicators['rsi'] > 70:
+                signals.append(-1)
+            # MACD
+            signals.append(1 if indicators['macd'] > indicators['macd_signal'] else -1)
+            # Bollinger Bands
+            if price < indicators['bb_lower']:
+                signals.append(1)
+            elif price > indicators['bb_upper']:
+                signals.append(-1)
+            # EMA crossover
+            signals.append(1 if indicators['ema9'] > indicators['ema21'] else -1)
+            # Candlestick patterns
+            o, h, l, c = indicators['open'], indicators['high'], indicators['low'], indicators['close']
+            engulf = talib.CDLENGULFING(o, h, l, c)
+            if engulf[-1] != 0:
+                signals.append(1 if engulf[-1] > 0 else -1)
+            hammer = talib.CDLHAMMER(o, h, l, c)
+            if hammer[-1] != 0:
+                signals.append(1)
+            shooting = talib.CDLSHOOTINGSTAR(o, h, l, c)
+            if shooting[-1] != 0:
+                signals.append(-1)
+            # Long wick (liquidity grab)
+            last_open, last_close = o[-1], c[-1]
+            last_high, last_low = h[-1], l[-1]
+            body = abs(last_close - last_open)
+            upper_wick = last_high - max(last_open, last_close)
+            lower_wick = min(last_open, last_close) - last_low
+            if lower_wick > body * 2:
+                signals.append(1)
+            if upper_wick > body * 2:
+                signals.append(-1)
+            # S/R extremes (20-bar high/low)
+            recent_high = float(data['high'].tail(20).max())
+            recent_low = float(data['low'].tail(20).min())
+            if price <= recent_low * 1.02:
+                signals.append(1)
+            elif price >= recent_high * 0.98:
+                signals.append(-1)
+            # News sentiment
+            sentiment = 0
+            if newsapi:
+                try:
+                    news_resp = newsapi.get_everything(q=symbol, language='en', sort_by='publishedAt', page_size=5)
+                    articles = news_resp.get('articles', []) if news_resp else []
+                    score = 0
+                    for art in articles:
+                        title = art['title'].lower()
+                        if any(word in title for word in ['surge','jump','rise','gain','bull']):
+                            score += 1
+                        elif any(word in title for word in ['drop','fall','decline','bear','crash']):
+                            score -= 1
+                    if articles:
+                        sentiment = score / len(articles)
+                except Exception as e:
+                    logging.error(f"News sentiment error: {e}")
+            if sentiment > 0.3: signals.append(1)
+            elif sentiment < -0.3: signals.append(-1)
+            # Stablecoin flow (dummy, no real data)
+            # signals.append(... if any stablecoin signal)
+            # Signal cleaner: volatility filter
+            atr_val = self.calculate_atr(symbol, period=14)
+            if atr_val and atr_val / price < 0.005:
+                logging.info(f"Low ATR, skipping {symbol}")
+                return 'HOLD', None, None, 0.0
+            # Final signal decision
+            signal_sum = sum(signals)
+            total = len(signals)
+            threshold = 0.6 * total
+            action = 'HOLD'
+            if signal_sum > threshold:
+                action = 'BUY'
+            elif signal_sum < -threshold:
+                action = 'SELL'
+            if action == 'HOLD':
+                return 'HOLD', None, None, 0.0
+            # Determine TP and SL
+            if action == 'BUY':
+                tp = self.calculate_take_profit(price, 'BUY') or price * 1.02
+                sl = self.calculate_stop_loss(price, 'BUY') or price * 0.99
+            else:
+                tp = self.calculate_take_profit(price, 'SELL') or price * 0.98
+                sl = self.calculate_stop_loss(price, 'SELL') or price * 1.01
+            # Multi-timeframe confirmation (1H trend alignment)
+            try:
+                key = normalize_symbol(symbol)
+                epic = MARKET_CACHE.get(key, {}).get('epic')
+                hr_data = None
+                if epic:
+                    hr_data = self.get_historical_candles(epic, resolution='HOUR', num_points=50)
+                else:
+                    hr_data = None
+                if hr_data is not None and not hr_data.empty:
+                    hr_close = hr_data['close'].astype(float).values
+                    hr_sma = talib.SMA(hr_close, timeperiod=20)[-1]
+                    if action == 'BUY' and hr_close[-1] < hr_sma:
+                        return 'HOLD', None, None, 0.0
+                    if action == 'SELL' and hr_close[-1] > hr_sma:
+                        return 'HOLD', None, None, 0.0
+            except Exception as e:
+                logging.error(f"MTF confirm error: {e}")
+            # Confidence level
+            confidence = 0.0
+            if total > 0:
+                confidence = (signals.count(1) / total) if action == 'BUY' else (signals.count(-1) / total)
+            return action, float(tp), float(sl), confidence
+        except Exception as e:
+            logging.error(f"Analysis error for {symbol}: {e}")
+            return 'HOLD', None, None, 0.0
+
+    def place_order(self, symbol: str, direction: str, size: float, tp=None, sl=None):
+        """Place a market order via Capital.com API."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return False
+            # Find epic
+            key = normalize_symbol(symbol)
+            epic = MARKET_CACHE.get(key, {}).get('epic')
+            if not epic:
+                for m in self.available_markets:
+                    if m.get('instrumentName') == symbol:
+                        epic = m.get('epic'); break
+            if not epic:
+                logging.error(f"No epic for {symbol}")
+                return False
+            order = {
+                "epic": epic,
+                "direction": direction,
+                "size": size,
+                "orderType": "MARKET",
+                "timeInForce": "FILL_OR_KILL",
+                "guaranteedStop": False
+            }
+            if sl: order["stopLevel"] = float(sl)
+            if tp: order["limitLevel"] = float(tp)
+            throttle_api_call()
+            resp = self.session.post(f"{CAPITAL_API_URL}/positions",
+                                     headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY},
+                                     json=order)
+            if resp.status_code in (200, 201):
+                logging.info(f"Order placed: {symbol} {direction} x{size:.4f}")
+                return True
+            else:
+                try:
+                    err = resp.json()
+                except:
+                    err = resp.text
+                logging.error(f"Order failed: {err}")
+                return False
+        except Exception as e:
+            logging.error(f"Order exception: {e}")
+            return False
+
+    def execute_trade(self, symbol: str, action: str, tp: float, sl: float, risk_percent: float = None):
+        """Execute trade with risk-based position sizing."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return False
+            current_price = self.get_current_price(symbol)
+            if current_price is None:
+                logging.error(f"No price for {symbol}")
+                return False
+            account = self.get_account_info()
+            if not account:
+                return False
+            balance = float(account['balance'])
+            rpct = risk_percent if risk_percent is not None else RISK_PERCENT
+            risk_amount = balance * (rpct / 100.0)
+            sl_distance = abs(current_price - sl)
+            if sl_distance <= 0:
+                logging.error(f"{symbol} SL distance zero, trade aborted.")
+                return False
+            position_size = risk_amount / sl_distance
+            min_size = self.get_minimum_position_size(symbol)
+            if position_size < min_size:
+                position_size = min_size
+            success = self.place_order(symbol, action, position_size, tp, sl)
+            if success:
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                save_trade_to_csv(now_str, symbol, action, tp, sl, result=None)
+                msg = (f"✅ Trade Executed: {symbol}\nAction: {action}\nEntry: {current_price:.4f}\n"
+                       f"Size: {position_size:.4f}\nTP: {tp:.4f}\nSL: {sl:.4f}\nRisk: ${risk_amount:.2f} ({rpct}%)")
+                asyncio.run(send_telegram_message(msg))
+                self.active_trades[symbol] = {
+                    'entry_price': current_price,
+                    'position_size': position_size,
+                    'direction': action,
+                    'take_profit': tp,
+                    'stop_loss': sl,
+                    'timestamp': now_str
+                }
+                logging.info(f"Trade executed: {symbol} {action} size {position_size:.4f}")
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Trade execution error: {e}")
+            return False
+
+    def update_active_trades(self):
+        """Update open trades for trailing stops and closure conditions."""
+        try:
+            for symbol, trade in list(self.active_trades.items()):
+                current_price = self.get_current_price(symbol)
+                if current_price is None:
+                    continue
+                entry = trade['entry_price']
+                sl = trade['stop_loss']
+                tp = trade['take_profit']
+                direction = trade['direction']
+                size = trade['position_size']
+                # P/L percentage since entry
+                pnl_percent = ((current_price - entry) / entry * 100) if direction == 'BUY' else ((entry - current_price) / entry * 100)
+                # Breakeven SL
+                if pnl_percent > 0 and pnl_percent >= BREAKEVEN_TRIGGER * 100:
+                    new_sl = entry
+                    if direction == 'BUY' and new_sl > sl:
+                        sl = new_sl
+                        asyncio.run(send_telegram_message(f"🔒 {symbol} SL -> BE ({sl:.4f})"))
+                    elif direction == 'SELL' and new_sl < sl:
+                        sl = new_sl
+                        asyncio.run(send_telegram_message(f"🔒 {symbol} SL -> BE ({sl:.4f})"))
+                # Trailing TP
+                if pnl_percent > 0 and pnl_percent >= TP_MOVE_PERCENT * 100:
+                    move = current_price * TP_MOVE_PERCENT
+                    if direction == 'BUY':
+                        new_tp = tp + move
+                        if new_tp > tp:
+                            tp = new_tp
+                            asyncio.run(send_telegram_message(f"📈 Trailing TP for {symbol}: {tp:.4f}"))
+                    else:
+                        new_tp = tp - move
+                        if new_tp < tp:
+                            tp = new_tp
+                            asyncio.run(send_telegram_message(f"📉 Trailing TP for {symbol}: {tp:.4f}"))
+                # Check SL/TP hit
+                if direction == 'BUY':
+                    if current_price <= sl:
+                        self.close_trade(symbol, reason="Stop Loss")
+                        pnl = (sl - entry) * size
+                        asyncio.run(send_telegram_message(f"🔴 Stop Loss Hit: {symbol}\nEntry: {entry:.4f}\nExit: {sl:.4f}\nP/L: ${pnl:.2f}"))
+                        continue
+                    if current_price >= tp:
+                        self.close_trade(symbol, reason="Take Profit")
+                        pnl = (tp - entry) * size
+                        asyncio.run(send_telegram_message(f"🟢 Take Profit Hit: {symbol}\nEntry: {entry:.4f}\nExit: {tp:.4f}\nP/L: ${pnl:.2f}"))
+                        continue
+                else:  # SELL
+                    if current_price >= sl:
+                        self.close_trade(symbol, reason="Stop Loss")
+                        pnl = (entry - sl) * size
+                        asyncio.run(send_telegram_message(f"🔴 Stop Loss Hit: {symbol}\nEntry: {entry:.4f}\nExit: {sl:.4f}\nP/L: ${pnl:.2f}"))
+                        continue
+                    if current_price <= tp:
+                        self.close_trade(symbol, reason="Take Profit")
+                        pnl = (entry - tp) * size
+                        asyncio.run(send_telegram_message(f"🟢 Take Profit Hit: {symbol}\nEntry: {entry:.4f}\nExit: {tp:.4f}\nP/L: ${pnl:.2f}"))
+                        continue
+                # Save adjusted SL/TP
+                trade['stop_loss'] = sl
+                trade['take_profit'] = tp
+                trade['pnl_percent'] = pnl_percent
+        except Exception as e:
+            logging.error(f"Active trade update error: {e}")
+
+    def close_trade(self, symbol: str, reason: str):
+        """Close an active trade and log the result."""
+        try:
+            if symbol not in self.active_trades:
+                return
+            trade = self.active_trades.pop(symbol)
+            # Attempt to close on broker by opposite order
+            try:
+                close_dir = 'SELL' if trade['direction'] == 'BUY' else 'BUY'
+                self.place_order(symbol, close_dir, trade['position_size'])
+            except Exception as e:
+                logging.error(f"Broker close order failed: {e}")
+            # Determine result
+            result = "WIN" if reason == "Take Profit" else "LOSS" if reason == "Stop Loss" else "CLOSED"
+            # Update trade history file with result
+            try:
+                if os.path.exists(TRADE_HISTORY_FILE):
+                    df = pd.read_csv(TRADE_HISTORY_FILE)
+                    mask = (df['Symbol'] == symbol) & (df['Result'].isnull())
+                    if mask.any():
+                        idx = mask[mask].index[-1]
+                        df.at[idx, 'Result'] = result
+                        df.to_csv(TRADE_HISTORY_FILE, index=False)
+                    else:
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        save_trade_to_csv(now_str, symbol, trade['direction'], trade['take_profit'], trade['stop_loss'], result=result)
+                else:
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_trade_to_csv(now_str, symbol, trade['direction'], trade['take_profit'], trade['stop_loss'], result=result)
+            except Exception as e:
+                logging.error(f"Trade history update error: {e}")
+            # Update performance stats
+            if symbol not in self.symbol_performance:
+                self.symbol_performance[symbol] = {'wins': 0, 'losses': 0, 'total': 0}
+            if result == "WIN":
+                self.symbol_performance[symbol]['wins'] += 1
+            elif result == "LOSS":
+                self.symbol_performance[symbol]['losses'] += 1
+            self.symbol_performance[symbol]['total'] += 1
+            self.last_trade_outcome = "WIN" if result == "WIN" else "LOSS" if result == "LOSS" else None
+            # Update daily P/L
+            entry_price = trade['entry_price']
+            exit_price = trade['take_profit'] if result == "WIN" else trade['stop_loss'] if result == "LOSS" else self.get_current_price(symbol) or entry_price
+            pnl = (exit_price - entry_price) * trade['position_size'] if trade['direction'] == 'BUY' else (entry_price - exit_price) * trade['position_size']
+            self.daily_pnl += pnl
+            logging.info(f"Closed {symbol} due to {reason} -> {result}, P/L: {pnl:.2f}")
+        except Exception as e:
+            logging.error(f"Error closing trade {symbol}: {e}")
+
+    def calculate_atr(self, symbol: str, period=14):
+        try:
+            data = self.get_market_data(symbol)
+            if data is None or len(data) < period:
+                return None
+            high = data['high'].astype(float).values
+            low = data['low'].astype(float).values
+            close = data['close'].astype(float).values
+            atr_vals = talib.ATR(high, low, close, timeperiod=period)
+            return atr_vals[-1] if atr_vals is not None else None
+        except Exception as e:
+            logging.error(f"ATR calculation error: {e}")
+            return None
+
+    def calculate_take_profit(self, price: float, direction: str, atr_multiplier=2):
+        try:
+            if direction == 'BUY':
+                return price * (1 + atr_multiplier * 0.01)
+            else:
+                return price * (1 - atr_multiplier * 0.01)
+        except Exception as e:
+            logging.error(f"TP calc error: {e}")
+            return None
+
+    def calculate_stop_loss(self, price: float, direction: str, atr_multiplier=1):
+        try:
+            if direction == 'BUY':
+                return price * (1 - atr_multiplier * 0.01)
+            else:
+                return price * (1 + atr_multiplier * 0.01)
+        except Exception as e:
+            logging.error(f"SL calc error: {e}")
+            return None
+
+    def is_market_open(self, symbol: str) -> bool:
+        try:
+            key = normalize_symbol(symbol)
+            now_ts = time.time()
+            if key in MARKET_STATUS_CACHE:
+                if now_ts - MARKET_STATUS_CACHE[key]['timestamp'] < MARKET_STATUS_TTL:
+                    return MARKET_STATUS_CACHE[key]['is_open']
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return False
+            throttle_api_call()
+            resp = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                    params={'searchTerm': symbol},
+                                    headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            is_open = False
+            if resp.status_code == 200:
+                markets = resp.json().get('markets', [])
+                for m in markets:
+                    if normalize_symbol(m.get('instrumentName','')) == key:
+                        is_open = (m.get('marketStatus') == 'TRADEABLE')
+                        break
+            MARKET_STATUS_CACHE[key] = {'is_open': is_open, 'timestamp': now_ts}
+            return is_open
+        except Exception as e:
+            logging.error(f"Market status check error: {e}")
+            return False
+
+    def get_current_price(self, symbol: str):
+        try:
+            data = MARKET_CACHE.get(normalize_symbol(symbol), {}).get('data')
+            if data is None:
+                data = self.get_market_data(symbol)
+            if data is not None and not data.empty:
+                return float(data['close'].iloc[-1])
+        except Exception as e:
+            logging.error(f"Current price error for {symbol}: {e}")
+        return None
+
+    def news_loop(self):
+        """Continuously check news feeds and send alerts."""
+        while True:
+            self.check_news()
+            time.sleep(NEWS_CHECK_INTERVAL)
+
+    def check_news(self):
+        # Arabic news via RSS
+        if ARABIC_NEWS_RSS_URL:
+            try:
+                resp = requests.get(ARABIC_NEWS_RSS_URL, timeout=5)
+                if resp.status_code == 200:
+                    match = re.search(r'<item>.*?<title>([^<]+)</title>', resp.text, re.DOTALL)
+                    if match:
+                        title = match.group(1)
+                        if title and title != self.last_news_title:
+                            self.last_news_title = title
+                            asyncio.run(send_telegram_message(f"📰 [AR] {title}"))
+                            logging.info(f"Arabic news alert: {title}")
+            except Exception as e:
+                logging.error(f"Arabic news fetch error: {e}")
+        # English top headline via NewsAPI
+        if newsapi:
+            try:
+                headlines = newsapi.get_top_headlines(language='en', page_size=1)
+                articles = headlines.get('articles', []) if headlines else []
+                if articles:
+                    headline = articles[0]['title']
+                    if headline and headline != self.last_english_headline:
+                        self.last_english_headline = headline
+                        asyncio.run(send_telegram_message(f"📰 {headline}"))
+                        logging.info(f"English news alert: {headline}")
+            except Exception as e:
+                logging.error(f"English news fetch error: {e}")
+
+    def run(self):
+        logging.info(f"Starting bot in {STRATEGY_MODE} mode.")
+        asyncio.run(send_telegram_message(f"🚀 Bot Started\nMode: {STRATEGY_MODE}\nRisk per Trade: {RISK_PERCENT}%"))
+        while True:
+            try:
+                now = datetime.now()
+                # Reset daily stats at new day
+                if now.date() != self.current_day:
+                    self.current_day = now.date()
+                    self.daily_pnl = 0.0
+                    os.environ['BOT_PAUSED'] = '0'
+                    logging.info("New trading day: reset daily P/L and resumed trading.")
+                    asyncio.run(send_telegram_message("🌅 New trading day: Stats reset."))
+                # Only trade during allowed hours
+                hour = now.hour
+                if hour < START_HOUR or hour >= END_HOUR:
+                    logging.info("Outside trading hours. Sleeping.")
+                    time.sleep(60)
+                    continue
+                # Pause handling
+                if os.getenv('BOT_PAUSED') == '1':
+                    time.sleep(5)
+                    continue
+                # Daily drawdown/profit limits
+                if self.daily_pnl <= DAILY_LOSS_LIMIT or self.daily_pnl >= DAILY_PROFIT_LIMIT:
+                    os.environ['BOT_PAUSED'] = '1'
+                    reason = "loss" if self.daily_pnl <= DAILY_LOSS_LIMIT else "profit"
+                    alert = f"⚠️ Daily {reason} limit reached. Trading paused."
+                    asyncio.run(send_telegram_message(alert))
+                    logging.warning(alert)
+                    continue
+                # Select symbols to analyze
+                if USE_ALL_MARKETS and self.available_markets:
+                    symbols = [m['instrumentName'] for m in self.available_markets]
+                else:
+                    symbols = ["BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD"]
+                for symbol in symbols:
+                    try:
+                        logging.info(f"{'-'*10} Analyzing {symbol} {'-'*10}")
+                        if not self.is_market_open(symbol):
+                            continue
+                        time.sleep(0.2)
+                        action, tp, sl, confidence = self.analyze_market(symbol)
+                        if action in ['BUY', 'SELL']:
+                            if CONFIRMATION_MODE:
+                                msg = (f"🔔 Signal: {symbol} {action}\nTP: {tp:.4f} | SL: {sl:.4f}\n"
+                                       f"Confidence: {confidence*100:.0f}%\n(Waiting for /confirm or /cancel)")
+                                asyncio.run(send_telegram_message(msg))
+                                # In confirmation mode, do not auto-execute
+                                self.pending_signal = {'symbol': symbol, 'action': action, 'tp': tp, 'sl': sl}
+                            else:
+                                # Adjust risk for recovery or high confidence
+                                trade_risk = None
+                                if confidence >= 0.8:
+                                    trade_risk = min(RISK_PERCENT * 1.5, 5)
+                                    if self.last_trade_outcome == 'LOSS':
+                                        trade_risk = min(RISK_PERCENT * 2, 5)
+                                success = self.execute_trade(symbol, action, tp, sl, risk_percent=trade_risk)
+                                if success:
+                                    logging.info(f"Trade placed: {symbol} {action}")
+                                else:
+                                    logging.error(f"Trade failed: {symbol}")
+                        self.update_active_trades()
+                    except Exception as e:
+                        logging.error(f"Error on {symbol}: {e}")
+                        continue
+                # Auto close all trades at configured hour
+                if CLOSE_HOUR != -1 and now.hour >= CLOSE_HOUR:
+                    for sym in list(self.active_trades.keys()):
+                        self.close_trade(sym, reason="Time Close")
+                        asyncio.run(send_telegram_message(f"ℹ️ {sym} closed due to schedule."))
+                logging.info(f"Cycle complete. Sleeping {TRADE_INTERVAL}s.")
+                time.sleep(TRADE_INTERVAL)
+            except Exception as e:
+                err = f"Runtime error: {e}"
+                logging.error(err)
+                asyncio.run(send_telegram_message(f"❌ {err}"))
+                time.sleep(60)
+
+# Flask Routes for Dashboard and Webhook
+@app.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
+    if request.method == "POST":
+        if request.form.get("password") != DASHBOARD_PASSWORD:
+            return "Access Denied", 403
+        if request.form.get("reset"):
+            clear_trade_history()
+        if request.form.get("pause"):
+            os.environ['BOT_PAUSED'] = '1'
+        if request.form.get("resume"):
+            os.environ['BOT_PAUSED'] = '0'
+        if request.form.get("strategy"):
+            mode = request.form.get("strategy")
+            os.environ['STRATEGY_MODE'] = mode  # Note: Changing mode on the fly won't immediately update risk settings
+    trades = load_trade_history()
+    wins = sum(1 for t in trades if t.get('Result') == 'WIN')
+    losses = sum(1 for t in trades if t.get('Result') == 'LOSS')
+    total = wins + losses
+    winrate = (wins / total * 100) if total > 0 else 0.0
+    pnl = 0.0
+    for t in trades:
+        res = t.get('Result')
+        if res == 'WIN':
+            pnl += abs(float(t['TP']) - float(t['SL']))
+        elif res == 'LOSS':
+            pnl -= abs(float(t['TP']) - float(t['SL']))
+    return render_template_string("""
+    <html>
+      <head><title>MAGUS PRIME X Dashboard</title></head>
+      <body style="font-family: Arial, sans-serif; margin:20px;">
+        <h2>🤖 MAGUS PRIME X – Trading Bot Dashboard</h2>
+        <p><b>Status:</b> {{ 'Paused' if paused else 'Running' }}</p>
+        <p><b>Strategy Mode:</b> {{ mode }} | Interval: {{ interval }}s | Risk: {{ risk }}%</p>
+        <p><b>Net P/L:</b> {{ pnl|round(2) }} | <b>Win Rate:</b> {{ winrate|round(2) }}%</p>
+        <form method="POST">
+          <input type="password" name="password" placeholder="Password" required>
+          <select name="strategy">
+            <option value="Safe">Safe</option>
+            <option value="Balanced" selected>Balanced</option>
+            <option value="Aggressive">Aggressive</option>
+          </select>
+          <button type="submit">Switch Strategy</button>
+          <button type="submit" name="pause" value="1">Pause</button>
+          <button type="submit" name="resume" value="1">Resume</button>
+          <button type="submit" name="reset" value="1" onclick="return confirm('Clear history?')">Reset History</button>
+        </form>
+        <hr>
+        <h3>Recent Trades:</h3>
+        <ul>
+        {% for t in trades %}
+          <li>{{ t['Time'] }} – {{ t['Symbol'] }} {{ t['Action'] }} | TP: {{ "%.4f"|format(t['TP']) }} | SL: {{ "%.4f"|format(t['SL']) }} | Result: {{ t['Result'] or 'OPEN' }}</li>
+        {% endfor %}
+        </ul>
+      </body>
+    </html>
+    """, paused=(os.getenv('BOT_PAUSED') == '1'), mode=STRATEGY_MODE, interval=TRADE_INTERVAL,
+       risk=RISK_PERCENT, pnl=pnl, winrate=winrate, trades=trades)
+
+@app.route("/")
+def root(): 
+    return redirect("/dashboard")
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json(force=True)
+    if WEBHOOK_TOKEN and data.get("token") != WEBHOOK_TOKEN:
+        return "Invalid token", 403
+    symbol = data.get("symbol"); action = data.get("action")
+    tp = data.get("tp"); sl = data.get("sl")
+    if not symbol or not action or tp is None or sl is None:
+        return "Missing parameters", 400
+    bot.execute_trade(symbol, action.upper(), float(tp), float(sl))
+    return "Signal executed", 200
+
+# Initialize bot and run components
+if __name__ == "__main__":
+    bot = TradingBot()
+    # Start Flask dashboard in background
+    threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000}, daemon=True).start()
+    # Start Telegram polling in background (async mode only)
+    if is_telegram_async:
+        threading.Thread(target=telegram_app.run_polling, daemon=True).start()
+    try:
+        bot.run()
+    except Exception as e:
+        logging.error(f"Bot stopped: {e}")
+        asyncio.run(send_telegram_message(f"❌ Bot stopped due to error: {e}"))
+import os
+import time
+import threading
+import logging
+import requests
+import pandas as pd
+import numpy as np
+import talib
+import json
+import re
+from flask import Flask, request, jsonify, render_template_string, redirect
+from dotenv import load_dotenv
+from datetime import datetime, date, timedelta
+from newsapi import NewsApiClient
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import telegram
+import pkg_resources
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+
+# API Credentials and configuration from environment
+CAPITAL_API_KEY       = os.getenv("CAPITAL_API_KEY")
+CAPITAL_API_PASSWORD  = os.getenv("CAPITAL_API_PASSWORD")
+CAPITAL_IDENTIFIER    = os.getenv("CAPITAL_API_IDENTIFIER")
+# Default to demo API URL if not provided in .env; switch to live URL as needed
+CAPITAL_API_URL       = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
+NEWS_API_KEY          = os.getenv("NEWS_API_KEY")
+TELEGRAM_TOKEN        = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID      = os.getenv("TELEGRAM_CHAT_ID")
+DASHBOARD_PASSWORD    = os.getenv("DASHBOARD_PASSWORD", "1234")
+
+# Trading parameters from environment (with defaults)
+STRATEGY_MODE      = os.getenv("STRATEGY_MODE", "Balanced")  # Safe, Balanced, Aggressive
+DAILY_LOSS_LIMIT   = float(os.getenv("DAILY_LOSS_LIMIT", -500))   # e.g. -500 (max loss in $ before stopping)
+DAILY_PROFIT_LIMIT = float(os.getenv("DAILY_PROFIT_LIMIT", 1000)) # e.g. 1000 (max profit in $ before stopping)
+START_HOUR         = int(os.getenv("START_HOUR", 0))   # Start trading hour (0-23), default 0 (no restriction)
+END_HOUR           = int(os.getenv("END_HOUR", 24))    # End trading hour, default 24 (no restriction)
+CLOSE_HOUR         = int(os.getenv("CLOSE_HOUR", -1))  # If set (0-23), auto-close all trades at or after this hour
+USE_ALL_MARKETS    = os.getenv("USE_ALL_MARKETS", "True").lower() == "true"  # Whether to scan all markets or just a test list
+CONFIRMATION_MODE  = os.getenv("CONFIRMATION_MODE", "False").lower() == "true"  # If True, require manual confirmation for trades
+WEBHOOK_TOKEN      = os.getenv("WEBHOOK_TOKEN")  # Optional token to secure TradingView webhooks
+
+# Strategy mode parameters (Safe, Balanced, Aggressive)
+if STRATEGY_MODE == "Safe":
+    TRADE_INTERVAL    = 600        # Wait 10 minutes between cycles
+    TP_MOVE_PERCENT   = 0.3 / 100  # 0.3% move to trail TP
+    BREAKEVEN_TRIGGER = 0.5 / 100  # 0.5% move to bring SL to breakeven
+    RISK_PERCENT      = 1          # 1% risk per trade
+elif STRATEGY_MODE == "Aggressive":
+    TRADE_INTERVAL    = 120        # 2 minutes between cycles
+    TP_MOVE_PERCENT   = 1.0 / 100  # 1% move to trail TP
+    BREAKEVEN_TRIGGER = 1.5 / 100  # 1.5% move to breakeven
+    RISK_PERCENT      = 3          # 3% risk per trade
+else:  # Balanced (default)
+    TRADE_INTERVAL    = 300        # 5 minutes between cycles
+    TP_MOVE_PERCENT   = 0.5 / 100  # 0.5% move to trail TP
+    BREAKEVEN_TRIGGER = 1.0 / 100  # 1% move to breakeven
+    RISK_PERCENT      = 2          # 2% risk per trade
+
+# Market data caching to reduce API calls
+MARKET_CACHE = {}        # Stores fetched market data and metadata
+MARKET_CACHE_TTL = 3600  # Cache lifetime in seconds (e.g., 1 hour)
+
+# Market status cache (to avoid frequent checks if market is open)
+MARKET_STATUS_CACHE = {}
+MARKET_STATUS_TTL = 300  # 5 minutes
+
+# News configuration
+ARABIC_NEWS_RSS_URL = os.getenv("ARABIC_NEWS_RSS_URL", "")  # RSS feed for Arabic news (if any)
+NEWS_CHECK_INTERVAL = int(os.getenv("NEWS_CHECK_INTERVAL", 300))  # Check news every 5 minutes by default
+
+# Telegram bot initialization (for sending messages and receiving commands)
+telegram_version = pkg_resources.get_distribution("python-telegram-bot").version
+is_telegram_async = int(telegram_version.split('.')[0]) >= 20
+if is_telegram_async:
+    import asyncio
+    from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+    telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    telegram_bot = telegram_app.bot
+else:
+    telegram_bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+# Rate limit control for API calls
+API_CALL_INTERVAL = 0.5  # seconds between calls
+LAST_API_CALL_TIME = 0
+
+# Utility: Send Telegram message (works for both async and older versions)
+async def send_telegram_message(message: str):
+    """Send a message via Telegram bot to the configured chat."""
+    try:
+        if is_telegram_async:
+            await telegram_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        else:
+            telegram_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logging.info(f"Telegram message sent: {message[:50]}...")
+    except Exception as e:
+        logging.error(f"Failed to send Telegram message: {str(e)}")
+
+def throttle_api_call():
+    """Throttle API calls to avoid hitting rate limits."""
+    global LAST_API_CALL_TIME
+    current_time = time.time()
+    elapsed = current_time - LAST_API_CALL_TIME
+    if elapsed < API_CALL_INTERVAL:
+        time.sleep(API_CALL_INTERVAL - elapsed)
+    LAST_API_CALL_TIME = time.time()
+
+# Trade history logging helpers (CSV file used for persistence and dashboard)
+TRADE_HISTORY_FILE = "trade_history.csv"
+def save_trade_to_csv(timestamp, symbol, action, tp, sl, result=None):
+    """Append a trade record to the trade history CSV file."""
+    df = pd.DataFrame([[timestamp, symbol, action, tp, sl, result]],
+                      columns=["Time", "Symbol", "Action", "TP", "SL", "Result"])
+    df.to_csv(TRADE_HISTORY_FILE, mode='a', header=not os.path.exists(TRADE_HISTORY_FILE), index=False)
+
+def load_trade_history():
+    """Load recent trade history records from CSV (last 100 records)."""
+    if os.path.exists(TRADE_HISTORY_FILE):
+        try:
+            return pd.read_csv(TRADE_HISTORY_FILE).tail(100).to_dict(orient='records')
+        except Exception as e:
+            logging.error(f"Error reading trade history: {e}")
+            return []
+    return []
+
+def clear_trade_history():
+    """Clear the trade history file (for reset)."""
+    if os.path.exists(TRADE_HISTORY_FILE):
+        os.remove(TRADE_HISTORY_FILE)
+        logging.info("Trade history cleared.")
+
+# Utility: Normalize symbol names to a standard format (remove special chars, uppercase)
+def normalize_symbol(symbol: str) -> str:
+    """Normalize a trading symbol (remove '/', '-', '_' and case)."""
+    return re.sub(r'[\s/_\-]', '', symbol or '').upper()
+
+# Market symbol matching and validation
+def find_market_match(symbol: str, markets: list) -> dict:
+    """Find the best matching market for a given symbol from a list of markets."""
+    normalized_symbol = normalize_symbol(symbol)
+    attempted = []
+    # 1. Exact match by normalized instrument name
+    for m in markets:
+        if normalize_symbol(m.get('instrumentName', '')) == normalized_symbol:
+            logging.info(f"[Symbol Match] Exact match found: {symbol} -> {m['instrumentName']}")
+            return m
+        attempted.append(f"Exact: {m.get('instrumentName')}")
+    # 2. Partial match (symbol contained in market name or vice versa)
+    for m in markets:
+        market_name = normalize_symbol(m.get('instrumentName', ''))
+        if normalized_symbol in market_name or market_name in normalized_symbol:
+            logging.info(f"[Symbol Match] Partial match found: {symbol} -> {m['instrumentName']}")
+            return m
+        attempted.append(f"Partial: {m.get('instrumentName')}")
+    # 3. Try matching by epic code
+    for m in markets:
+        epic = normalize_symbol(m.get('epic', ''))
+        if normalized_symbol in epic or epic in normalized_symbol:
+            logging.info(f"[Symbol Match] Epic match found: {symbol} -> {m.get('epic')}")
+            return m
+        attempted.append(f"Epic: {m.get('epic')}")
+    # If no match found, log and save for review
+    logging.warning(f"[Symbol Match] No match found for {symbol}")
+    save_unmatched_symbol(symbol, attempted)
+    return None
+
+def load_unmatched_symbols():
+    """Load dictionary of symbols that could not be matched (from JSON file)."""
+    if os.path.exists("unmatched_symbols.json"):
+        try:
+            with open("unmatched_symbols.json", 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading unmatched symbols: {e}")
+    return {}
+
+def save_unmatched_symbol(symbol: str, attempted_matches: list):
+    """Save an unmatched symbol and attempted matches to a JSON log for analysis."""
+    data = load_unmatched_symbols()
+    data[symbol] = {
+        'timestamp': datetime.now().isoformat(),
+        'attempted_matches': attempted_matches,
+        'normalized_form': normalize_symbol(symbol)
+    }
+    try:
+        with open("unmatched_symbols.json", 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logging.error(f"Error saving unmatched symbol: {e}")
+
+# Initialize News API client for English news (NewsAPI) if key provided
+newsapi = None
+if NEWS_API_KEY:
+    try:
+        newsapi = NewsApiClient(api_key=NEWS_API_KEY)
+    except Exception as e:
+        logging.error(f"Failed to initialize NewsApiClient: {e}")
+
+# Flask web app for dashboard and webhooks
+app = Flask(__name__)
+
+# Trading Bot Class encapsulating all trading logic
+class TradingBot:
+    def __init__(self):
+        # Create a session with retry logic for HTTP requests
+        self.session = self.create_session()
+        self.auth_token_cache = {'cst': None, 'security': None, 'expiry': 0}
+        self.rate_limit_retries = 5
+        self.rate_limit_backoff = 2
+
+        # Load list of available markets at startup (for symbol scanning and validation)
+        self.available_markets = self.get_available_markets()
+
+        # Active trades and performance tracking
+        self.active_trades = {}     # { symbol: {entry_price, position_size, direction, take_profit, stop_loss, timestamp, ...} }
+        self.symbol_performance = {}  # Track wins/losses per symbol for DNA mode
+        self.last_trade_outcome = None  # 'WIN' or 'LOSS' of last closed trade
+        self.current_day = date.today()
+        self.daily_pnl = 0.0
+
+        # Initialize news tracking
+        self.last_news_title = None        # Last sent Arabic news title
+        self.last_english_headline = None  # Last sent English headline
+        self.news_thread = None
+        if ARABIC_NEWS_RSS_URL or NEWS_API_KEY:
+            # Start background thread to monitor news
+            self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
+            self.news_thread.start()
+            logging.info("News monitoring thread started.")
+
+        # If using Telegram in async mode, set up command handlers
+        if is_telegram_async:
+            # Define Telegram command handlers (asynchronous)
+            async def handle_pause(update, context):
+                """Pause the trading bot (no new trades)."""
+                os.environ['BOT_PAUSED'] = '1'
+                await update.message.reply_text("⏸ Bot trading paused.")
+            async def handle_resume(update, context):
+                """Resume the trading bot."""
+                os.environ['BOT_PAUSED'] = '0'
+                await update.message.reply_text("▶️ Bot trading resumed.")
+            async def handle_forcebuy(update, context):
+                """Force a market buy on a given symbol (usage: /forcebuy SYMBOL TP SL)."""
+                args = context.args
+                if len(args) == 0:
+                    await update.message.reply_text("Usage: /forcebuy SYMBOL [TP] [SL]")
+                    return
+                symbol = args[0]
+                # Optional TP and SL from command, otherwise use 1% default targets
+                current_price = self.get_current_price(symbol) or 0
+                if current_price == 0:
+                    await update.message.reply_text(f"Symbol {symbol} not found or price unavailable.")
+                    return
+                tp = float(args[1]) if len(args) > 1 else round(current_price * 1.02, 5)
+                sl = float(args[2]) if len(args) > 2 else round(current_price * 0.98, 5)
+                success = self.execute_trade(symbol, "BUY", tp, sl)
+                if success:
+                    await update.message.reply_text(f"✅ Force BUY executed for {symbol} at {current_price:.4f}")
+                else:
+                    await update.message.reply_text(f"❌ Force BUY failed for {symbol}.")
+            async def handle_forcesell(update, context):
+                """Force a market sell on a given symbol (usage: /forcesell SYMBOL TP SL)."""
+                args = context.args
+                if len(args) == 0:
+                    await update.message.reply_text("Usage: /forcesell SYMBOL [TP] [SL]")
+                    return
+                symbol = args[0]
+                current_price = self.get_current_price(symbol) or 0
+                if current_price == 0:
+                    await update.message.reply_text(f"Symbol {symbol} not found or price unavailable.")
+                    return
+                tp = float(args[1]) if len(args) > 1 else round(current_price * 0.98, 5)
+                sl = float(args[2]) if len(args) > 2 else round(current_price * 1.02, 5)
+                success = self.execute_trade(symbol, "SELL", tp, sl)
+                if success:
+                    await update.message.reply_text(f"✅ Force SELL executed for {symbol} at {current_price:.4f}")
+                else:
+                    await update.message.reply_text(f"❌ Force SELL failed for {symbol}.")
+            async def handle_status(update, context):
+                """Send current bot status including PnL and win rate."""
+                trades = load_trade_history()
+                wins = sum(1 for t in trades if t.get('Result') == 'WIN')
+                losses = sum(1 for t in trades if t.get('Result') == 'LOSS')
+                total = wins + losses
+                winrate = (wins / total * 100) if total > 0 else 0.0
+                # Compute net P/L from trade history (approximation using TP/SL difference)
+                pnl = 0.0
+                for t in trades:
+                    res = t.get('Result')
+                    if res == 'WIN':
+                        pnl += abs(float(t['TP']) - float(t['SL']))
+                    elif res == 'LOSS':
+                        pnl -= abs(float(t['SL']) - float(t['TP']))
+                status_msg = (f"📊 Trades: {total}, Wins: {wins}, Losses: {losses}, Win Rate: {winrate:.1f}%\n"
+                              f"🏦 Net P/L: {pnl:.2f} (approx)\n"
+                              f"Mode: {STRATEGY_MODE}, Risk per Trade: {RISK_PERCENT}%")
+                await update.message.reply_text(status_msg)
+            async def handle_signal(update, context):
+                """Provide current signal evaluation for a symbol (usage: /signal SYMBOL)."""
+                args = context.args
+                if len(args) == 0:
+                    await update.message.reply_text("Usage: /signal SYMBOL")
+                    return
+                symbol = args[0]
+                action, tp, sl, confidence = self.analyze_market(symbol)
+                if action in ['BUY', 'SELL']:
+                    msg = (f"Signal for {symbol}: {action}\n"
+                           f"Confidence: {confidence*100:.0f}%\n"
+                           f"Suggested TP: {tp:.4f}\nSuggested SL: {sl:.4f}")
+                else:
+                    msg = f"No strong signal for {symbol} (currently HOLD)."
+                await update.message.reply_text(msg)
+            async def handle_dashboard(update, context):
+                """Provide the dashboard URL."""
+                # If the bot is hosted on a known domain or IP, mention it. Otherwise instruct to access directly.
+                await update.message.reply_text("💻 Dashboard is available at /dashboard on the bot server.")
+
+            # Register command handlers
+            telegram_app.add_handler(CommandHandler("pause", handle_pause))
+            telegram_app.add_handler(CommandHandler("resume", handle_resume))
+            telegram_app.add_handler(CommandHandler("forcebuy", handle_forcebuy))
+            telegram_app.add_handler(CommandHandler("forcesell", handle_forcesell))
+            telegram_app.add_handler(CommandHandler("status", handle_status))
+            telegram_app.add_handler(CommandHandler("signal", handle_signal))
+            telegram_app.add_handler(CommandHandler("dashboard", handle_dashboard))
+            logging.info("Telegram command handlers registered.")
+
+        # If using older telegram Bot (synchronous), we won't handle incoming commands in this script for simplicity.
+
+    def create_session(self):
+        """Create a requests Session with retry strategy for robust HTTP calls."""
+        session = requests.Session()
+        retry_strategy = Retry(total=5, backoff_factor=0.2)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
+    def authenticate(self):
+        """Authenticate with Capital.com API (returns CST and security token, uses caching)."""
+        current_time = time.time()
+        # Use cached token if still valid
+        if self.auth_token_cache['cst'] and self.auth_token_cache['security'] and current_time < self.auth_token_cache['expiry']:
+            return self.auth_token_cache['cst'], self.auth_token_cache['security']
+        # Otherwise, perform login
+        url = f"{CAPITAL_API_URL}/session"
+        headers = {"X-CAP-API-KEY": CAPITAL_API_KEY}
+        data = {"identifier": CAPITAL_IDENTIFIER, "password": CAPITAL_API_PASSWORD}
+        for attempt in range(self.rate_limit_retries):
+            try:
+                throttle_api_call()
+                response = self.session.post(url, headers=headers, json=data)
+                if response.status_code == 200:
+                    resp_data = response.json()
+                    cst = resp_data.get('CST')
+                    security = resp_data.get('X-SECURITY-TOKEN')
+                    # Cache tokens for 1 hour
+                    self.auth_token_cache = {
+                        'cst': cst,
+                        'security': security,
+                        'expiry': current_time + 3600
+                    }
+                    logging.info("Authenticated with Capital.com API.")
+                    return cst, security
+                elif response.status_code == 429 or "too many requests" in response.text.lower():
+                    wait = self.rate_limit_backoff ** attempt
+                    logging.warning(f"Rate limited by API. Retrying in {wait} seconds...")
+                    time.sleep(wait)
+                else:
+                    logging.error(f"Authentication failed: {response.text}")
+                    return None, None
+            except Exception as e:
+                logging.error(f"Authentication error: {e}")
+                return None, None
+        logging.error("Authentication failed after multiple retries.")
+        return None, None
+
+    def get_available_markets(self):
+        """Retrieve list of available markets from Capital.com API (only returns tradeable markets)."""
+        markets_list = []
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return markets_list
+            throttle_api_call()
+            response = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code == 200:
+                markets = response.json().get('markets', [])
+                # Filter only tradeable markets
+                markets_list = [m for m in markets if m.get('marketStatus') == 'TRADEABLE']
+                logging.info(f"Retrieved {len(markets_list)} tradeable markets.")
+            else:
+                logging.error(f"Failed to get markets: {response.status_code} - {response.text}")
+        except Exception as e:
+            logging.error(f"Error getting markets: {e}")
+        return markets_list
+
+    def get_minimum_position_size(self, symbol: str) -> float:
+        """Get the minimum allowed position size (lot size) for a given symbol."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return 0.1  # default minimum
+            throttle_api_call()
+            # Search the market info for this symbol
+            response = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                        params={'searchTerm': symbol},
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code == 200:
+                markets = response.json().get('markets', [])
+                for m in markets:
+                    if m.get('instrumentName') == symbol:
+                        return float(m.get('minDealSize', 0.1) or 0.1)
+            return 0.1
+        except Exception as e:
+            logging.error(f"Error getting min position size for {symbol}: {e}")
+            return 0.1
+
+    def get_account_info(self):
+        """Fetch account information (balance, currency) from Capital.com."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            throttle_api_call()
+            response = self.session.get(f"{CAPITAL_API_URL}/accounts",
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code == 200:
+                accounts = response.json().get('accounts', [])
+                if accounts:
+                    return {
+                        'balance': float(accounts[0].get('balance', 0)),
+                        'currency': accounts[0].get('currency', 'USD')
+                    }
+            return None
+        except Exception as e:
+            logging.error(f"Error getting account info: {e}")
+            return None
+
+    def get_historical_candles(self, epic: str, resolution: str = 'MINUTE_15', num_points: int = 50):
+        """Fetch historical OHLCV candle data for a market epic."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            url = f"{CAPITAL_API_URL}/prices/{epic}"
+            params = {'resolution': resolution, 'max': num_points}
+            headers = {"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY}
+            throttle_api_call()
+            response = self.session.get(url, headers=headers, params=params)
+            if response.status_code == 200:
+                prices = response.json().get('prices', [])
+                if not prices:
+                    return None
+                # Build DataFrame from prices
+                df = pd.DataFrame([{
+                        'timestamp': pd.to_datetime(p['snapshotTime']),
+                        'open': float(p['openPrice']['bid']),
+                        'high': float(p['highPrice']['bid']),
+                        'low': float(p['lowPrice']['bid']),
+                        'close': float(p['closePrice']['bid']),
+                        'volume': float(p.get('lastTradedVolume', 0))
+                    } for p in prices if 'closePrice' in p])
+                if df.empty:
+                    return None
+                df.set_index('timestamp', inplace=True)
+                df.sort_index(inplace=True)
+                return df
+            logging.error(f"Failed to fetch candles for epic {epic}: {response.status_code} {response.text}")
+            return None
+        except Exception as e:
+            logging.error(f"Historical data error for {epic}: {e}")
+            return None
+
+    def get_market_data(self, symbol: str):
+        """Get recent market data (OHLCV DataFrame) for a symbol, using cache if available."""
+        try:
+            cache_key = normalize_symbol(symbol)
+            current_time = time.time()
+            # Use cached data if not stale
+            if cache_key in MARKET_CACHE:
+                cached = MARKET_CACHE[cache_key]
+                if current_time - cached['timestamp'] < MARKET_CACHE_TTL:
+                    logging.debug(f"Using cached market data for {symbol}")
+                    return cached['data']
+            # If not cached or stale, fetch fresh data
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return None
+            # Search for the market to get its epic
+            throttle_api_call()
+            response = self.session.get(f"{CAPITAL_API_URL}/markets",
+                                        params={'searchTerm': symbol},
+                                        headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY})
+            if response.status_code != 200:
+                logging.error(f"Market search failed for {symbol}: {response.text}")
+                return None
+            markets = response.json().get('markets', [])
+            if not markets:
+                logging.error(f"No market data found for symbol: {symbol}")
+                return None
+            market = find_market_match(symbol, markets)
+            if not market:
+                return None
+            epic = market.get('epic')
+            # If market is closed, avoid fetching data (to prevent stale data usage)
+            if market.get('marketStatus') != 'TRADEABLE':
+                logging.info(f"Market {symbol} is closed (status: {market.get('marketStatus')}).")
+                return None
+            data = self.get_historical_candles(epic, resolution='MINUTE_15', num_points=100)
+            if data is not None:
+                # Cache the fetched data
+                MARKET_CACHE[cache_key] = {'data': data, 'timestamp': current_time, 'epic': epic, 'market': market}
+                return data
+            else:
+                logging.error(f"Failed to get market data for {symbol}")
+                return None
+        except Exception as e:
+            logging.error(f"Error getting market data for {symbol}: {e}")
+            return None
+
+    def calculate_indicators(self, data: pd.DataFrame) -> dict:
+        """Calculate technical indicators needed for signal generation."""
+        try:
+            if data is None or len(data) < 2:
+                return None
+            # Extract price arrays
+            close = data['close'].astype(float).values
+            high = data['high'].astype(float).values
+            low = data['low'].astype(float).values
+            open_prices = data['open'].astype(float).values
+            # Technical indicators (using TA-Lib)
+            indicators = {}
+            indicators['sma20'] = talib.SMA(close, timeperiod=20)[-1]
+            indicators['rsi'] = talib.RSI(close, timeperiod=14)[-1]
+            macd, macd_signal, macd_hist = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+            indicators['macd'] = macd[-1]; indicators['macd_signal'] = macd_signal[-1]
+            upper, middle, lower = talib.BBANDS(close, timeperiod=20)
+            indicators['bb_upper'] = upper[-1]; indicators['bb_lower'] = lower[-1]
+            # EMA crossover
+            indicators['ema9'] = talib.EMA(close, timeperiod=9)[-1]
+            indicators['ema21'] = talib.EMA(close, timeperiod=21)[-1]
+            # Additional info for candlestick patterns (last two candles for pattern detection)
+            indicators['open'] = open_prices
+            indicators['high'] = high
+            indicators['low'] = low
+            indicators['close'] = close
+            return indicators
+        except Exception as e:
+            logging.error(f"Error calculating indicators: {e}")
+            return None
+
+    def analyze_market(self, symbol: str):
+        """
+        Analyze the market for a given symbol and return a trading signal.
+        Returns (action, tp, sl, confidence):
+          action: 'BUY', 'SELL', or 'HOLD'
+          tp: suggested take-profit price (if action is BUY/SELL)
+          sl: suggested stop-loss price (if action is BUY/SELL)
+          confidence: float 0 to 1 indicating strength of signal
+        """
+        try:
+            data = self.get_market_data(symbol)
+            if data is None:
+                return 'HOLD', None, None, 0.0
+            indicators = self.calculate_indicators(data)
+            if indicators is None:
+                return 'HOLD', None, None, 0.0
+            current_price = float(data['close'].iloc[-1])
+            signals = []  # list of +1 (bullish) or -1 (bearish) signals
+
+            # 1. Trend (20-period SMA)
+            if current_price > indicators['sma20']:
+                signals.append(1)   # price above SMA -> bullish trend
+            else:
+                signals.append(-1)  # price below SMA -> bearish trend
+
+            # 2. RSI (14)
+            if indicators['rsi'] < 30:
+                signals.append(1)   # oversold -> bullish
+            elif indicators['rsi'] > 70:
+                signals.append(-1)  # overbought -> bearish
+
+            # 3. MACD crossover
+            if indicators['macd'] > indicators['macd_signal']:
+                signals.append(1)   # MACD bullish
+            else:
+                signals.append(-1)  # MACD bearish
+
+            # 4. Bollinger Bands (reversion signals)
+            if current_price < indicators['bb_lower']:
+                signals.append(1)   # price below lower band -> potential bounce (bullish)
+            elif current_price > indicators['bb_upper']:
+                signals.append(-1)  # price above upper band -> potential pullback (bearish)
+
+            # 5. EMA 9 vs EMA 21 (momentum)
+            if indicators['ema9'] > indicators['ema21']:
+                signals.append(1)   # short-term momentum up
+            else:
+                signals.append(-1)  # short-term momentum down
+
+            # 6. Candlestick pattern recognition (last candle)
+            open_arr = indicators['open']; high_arr = indicators['high']; low_arr = indicators['low']; close_arr = indicators['close']
+            # Engulfing pattern
+            engulf = talib.CDLENGULFING(open_arr, high_arr, low_arr, close_arr)
+            if engulf[-1] > 0:
+                signals.append(1)  # bullish engulfing
+            elif engulf[-1] < 0:
+                signals.append(-1) # bearish engulfing
+            # Hammer / Shooting Star
+            hammer = talib.CDLHAMMER(open_arr, high_arr, low_arr, close_arr)
+            if hammer[-1] != 0:
+                signals.append(1)  # hammer (bullish reversal)
+            shooting = talib.CDLSHOOTINGSTAR(open_arr, high_arr, low_arr, close_arr)
+            if shooting[-1] != 0:
+                signals.append(-1) # shooting star (bearish reversal)
+            # Long wick (liquidity grab) detection
+            last_open = open_arr[-1]; last_close = close_arr[-1]; last_high = high_arr[-1]; last_low = low_arr[-1]
+            body = abs(last_close - last_open)
+            upper_wick = last_high - max(last_open, last_close)
+            lower_wick = min(last_open, last_close) - last_low
+            if lower_wick > body * 2:  # long lower shadow
+                signals.append(1)   # potential bullish pin bar
+            if upper_wick > body * 2:  # long upper shadow
+                signals.append(-1)  # potential bearish pin bar
+
+            # 7. Support/Resistance proximity (last 20 bars range)
+            recent_high = float(data['high'].tail(20).max())
+            recent_low = float(data['low'].tail(20).min())
+            # If price near recent low -> bullish bias, near high -> bearish bias (within 5% of range extremes)
+            if current_price <= recent_low * 1.02:
+                signals.append(1)
+            elif current_price >= recent_high * 0.98:
+                signals.append(-1)
+
+            # 8. News sentiment (English news sentiment analysis for symbol)
+            sentiment = 0
+            if newsapi:
+                try:
+                    news_resp = newsapi.get_everything(q=symbol, language='en', sort_by='publishedAt', page_size=5)
+                    articles = news_resp.get('articles', []) if news_resp else []
+                    if articles:
+                        score = 0
+                        for article in articles:
+                            title = article['title'].lower()
+                            if any(word in title for word in ['surge', 'jump', 'rise', 'gain', 'bull']):
+                                score += 1
+                            elif any(word in title for word in ['drop', 'fall', 'plunge', 'bear', 'crash']):
+                                score -= 1
+                        sentiment = score / len(articles)
+                except Exception as e:
+                    logging.error(f"News sentiment analysis error for {symbol}: {e}")
+            # If strong sentiment detected, incorporate
+            if sentiment > 0.3:
+                signals.append(1)
+            elif sentiment < -0.3:
+                signals.append(-1)
+
+            # 9. Stablecoin flow (crypto sentiment) - placeholder
+            # This could be integrated via external data (not implemented, assume neutral)
+            # Example: if positive stablecoin net flow into exchanges -> bearish for crypto, etc.
+            stablecoin_flow_signal = 0
+            if stablecoin_flow_signal > 0:
+                signals.append(1)
+            elif stablecoin_flow_signal < 0:
+                signals.append(-1)
+
+            # 10. Signal cleaner (volatility filter)
+            atr_value = self.calculate_atr(symbol, period=14)
+            if atr_value is not None and atr_value / current_price < 0.005:  # ATR less than 0.5% of price
+                # Market is very low volatility -> likely no clear trend (avoid false breakout)
+                logging.info(f"Signal filtered out due to low volatility ATR for {symbol}.")
+                return 'HOLD', None, None, 0.0
+
+            # Determine final action from aggregated signals
+            signal_sum = sum(signals)
+            total_signals = len(signals)
+            # We require at least 60% of signals to agree on direction
+            threshold = 0.6 * total_signals
+            action = 'HOLD'
+            if signal_sum > threshold:
+                action = 'BUY'
+            elif signal_sum < -threshold:
+                action = 'SELL'
+
+            # Calculate initial TP and SL (using simple percent-based approach, could use ATR)
+            if action == 'BUY':
+                suggested_tp = self.calculate_take_profit(current_price, 'BUY', atr_multiplier=2) or current_price * 1.02
+                suggested_sl = self.calculate_stop_loss(current_price, 'BUY', atr_multiplier=1) or current_price * 0.99
+            elif action == 'SELL':
+                suggested_tp = self.calculate_take_profit(current_price, 'SELL', atr_multiplier=2) or current_price * 0.98
+                suggested_sl = self.calculate_stop_loss(current_price, 'SELL', atr_multiplier=1) or current_price * 1.01
+            else:
+                suggested_tp = None
+                suggested_sl = None
+
+            # Multi-timeframe confirmation: verify higher timeframe alignment (e.g., 1H trend)
+            if action in ['BUY', 'SELL']:
+                try:
+                    cache_key = normalize_symbol(symbol)
+                    epic = MARKET_CACHE.get(cache_key, {}).get('epic')
+                    hr_data = None
+                    if epic:
+                        hr_data = self.get_historical_candles(epic, resolution='HOUR', num_points=50)
+                    else:
+                        # If epic not cached yet, attempt to get via get_market_data
+                        hr_data = self.get_historical_candles(symbol, resolution='HOUR', num_points=50)
+                    if hr_data is not None and len(hr_data) > 0:
+                        hr_close = hr_data['close'].astype(float).values
+                        hr_sma20 = talib.SMA(hr_close, timeperiod=20)
+                        if action == 'BUY' and hr_close[-1] < hr_sma20[-1]:
+                            # 1H trend not bullish, invalidate buy signal
+                            logging.info(f"Buy signal for {symbol} overridden by 1H trend misalignment.")
+                            return 'HOLD', None, None, 0.0
+                        if action == 'SELL' and hr_close[-1] > hr_sma20[-1]:
+                            logging.info(f"Sell signal for {symbol} overridden by 1H trend misalignment.")
+                            return 'HOLD', None, None, 0.0
+                except Exception as e:
+                    logging.error(f"Multi-timeframe confirmation error: {e}")
+
+            # Calculate confidence as proportion of signals in agreement
+            confidence = 0.0
+            if action != 'HOLD' and total_signals > 0:
+                # confidence = fraction of signals that support the action
+                if action == 'BUY':
+                    confidence = signals.count(1) / total_signals
+                elif action == 'SELL':
+                    confidence = signals.count(-1) / total_signals
+
+            return action, (suggested_tp or 0.0), (suggested_sl or 0.0), confidence
+        except Exception as e:
+            logging.error(f"Market analysis error for {symbol}: {e}")
+            return 'HOLD', None, None, 0.0
+
+    def place_order(self, symbol: str, direction: str, size: float, tp: float = None, sl: float = None):
+        """Place a market order on Capital.com. Returns True if successful."""
+        try:
+            cst, sec = self.authenticate()
+            if not cst or not sec:
+                return False
+            # Determine epic code from cache or lookup
+            cache_key = normalize_symbol(symbol)
+            epic = MARKET_CACHE.get(cache_key, {}).get('epic')
+            if not epic:
+                # If not in cache, try to find via available_markets
+                for m in self.available_markets:
+                    if m.get('instrumentName') == symbol:
+                        epic = m.get('epic')
+                        break
+            if not epic:
+                logging.error(f"Could not determine epic for symbol {symbol}")
+                return False
+            # Prepare order payload
+            order = {
+                "epic": epic,
+                "direction": direction,
+                "size": size,
+                "orderType": "MARKET",
+                "timeInForce": "FILL_OR_KILL",
+                "guaranteedStop": False
+            }
+            if sl is not None:
+                order["stopLevel"] = float(sl)
+            if tp is not None:
+                order["limitLevel"] = float(tp)
+            # Execute order
+            throttle_api_call()
+            response = self.session.post(f"{CAPITAL_API_URL}/positions",
+                                         headers={"CST": cst, "X-SECURITY-TOKEN": sec, "X-CAP-API-KEY": CAPITAL_API_KEY},
+                                         json=order)
+            if response.status_code == 200 or response.status_code == 201:
+                # Order executed successfully
+                resp_json = response.json()
+                deal_reference = resp_json.get('dealReference')
+                logging.info(f"Order placed for {symbol}: {direction} {size}. Deal reference: {deal_reference}")
+                return True
+            else:
+                # Log error message if provided
+                try:
+                    error_msg = response.json()
+                except:
+                    error_msg = response.text
+                logging.error(f"Order placement failed for {symbol}: {response.status_code} {error_msg}")
+                return False
+        except Exception as e:
+            logging.error(f"Exception in place_order: {e}")
+            return False
